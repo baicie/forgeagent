@@ -33,14 +33,17 @@ export default defineConfig({
     rollupOptions: {
       external: [
         'node:crypto',
+        'node:events',
         'node:fs',
         'node:fs/promises',
         'node:http',
         'node:os',
         'node:path',
         'node:url',
+        'node:util',
         '@forgeagent/core',
         'fastify',
+        'zod',
       ],
       output: {
         preserveModules: false,

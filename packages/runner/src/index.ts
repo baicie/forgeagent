@@ -1,5 +1,6 @@
 export * from './config'
 export * from './context'
 export * from './db'
+export * from './git'
 export * from './server'
 export * from './services'

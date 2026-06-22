@@ -5,6 +5,8 @@ export const WorkspaceSchema = z.object({
   name: z.string().min(1),
   repoPath: z.string().min(1),
   gitRoot: z.string().min(1),
+  currentBranch: z.string().min(1).optional(),
+  currentCommit: z.string().min(1).optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 })

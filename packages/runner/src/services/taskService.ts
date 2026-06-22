@@ -4,7 +4,11 @@ import {
   createForgeAgentError,
 } from '@forgeagent/core'
 import { randomUUID } from 'node:crypto'
+import type { RunnerConfig } from '../config'
 import type { RunnerDb } from '../db'
+import type { GitDiffService } from '../git/diff'
+import type { GitRepositoryService } from '../git/repository'
+import type { GitWorktreeService } from '../git/worktree'
 import type { AuditService } from './auditService'
 import type { EventService } from './eventService'
 import type { WorkspaceService } from './workspaceService'
@@ -17,7 +21,11 @@ export interface CreateTaskInput {
 export class TaskService {
   constructor(
     private readonly db: RunnerDb,
+    private readonly config: RunnerConfig,
     private readonly workspaceService: WorkspaceService,
+    private readonly gitRepositoryService: GitRepositoryService,
+    private readonly gitWorktreeService: GitWorktreeService,
+    private readonly gitDiffService: GitDiffService,
     private readonly eventService: EventService,
     private readonly auditService: AuditService,
   ) {}
@@ -40,16 +48,25 @@ export class TaskService {
 
   async create(input: CreateTaskInput): Promise<Task> {
     const workspace = this.workspaceService.get(input.workspaceId)
+    const repositoryInfo = await this.gitRepositoryService.getRepositoryInfo(
+      workspace.gitRoot,
+    )
+    const taskId = `task_${randomUUID()}`
+    const worktree = await this.gitWorktreeService.create({
+      gitRoot: repositoryInfo.gitRoot,
+      taskId,
+      dataDir: this.config.dataDir,
+    })
     const now = new Date().toISOString()
 
     const task: Task = {
-      id: `task_${randomUUID()}`,
+      id: taskId,
       workspaceId: workspace.id,
       prompt: input.prompt,
       status: 'created',
-      baseBranch: 'unknown',
-      baseCommit: 'unknown',
-      worktreePath: workspace.gitRoot,
+      baseBranch: repositoryInfo.currentBranch,
+      baseCommit: repositoryInfo.currentCommit,
+      worktreePath: worktree.worktreePath,
       createdAt: now,
       updatedAt: now,
     }
@@ -62,6 +79,9 @@ export class TaskService {
       type: 'task.status',
       payload: {
         status: task.status,
+        worktreePath: task.worktreePath,
+        baseBranch: task.baseBranch,
+        baseCommit: task.baseCommit,
       },
     })
 
@@ -71,6 +91,9 @@ export class TaskService {
       payload: {
         workspaceId: task.workspaceId,
         prompt: task.prompt,
+        baseBranch: task.baseBranch,
+        baseCommit: task.baseCommit,
+        worktreePath: task.worktreePath,
       },
     })
 
@@ -120,12 +143,13 @@ export class TaskService {
     return task
   }
 
-  getDiff(id: string): { taskId: string; diff: string } {
-    this.get(id)
+  async getDiff(id: string): Promise<{ taskId: string; diff: string }> {
+    const task = this.get(id)
+    const diff = await this.gitDiffService.getDiff(task.worktreePath)
 
     return {
       taskId: id,
-      diff: '',
+      diff,
     }
   }
 
@@ -138,7 +162,31 @@ export class TaskService {
   }
 
   async discard(id: string): Promise<Task> {
-    return this.transition(id, 'discarded')
+    const task = this.get(id)
+
+    if (task.status === 'discarded') {
+      return task
+    }
+
+    const workspace = this.workspaceService.get(task.workspaceId)
+
+    await this.gitWorktreeService.discard(
+      workspace.gitRoot,
+      task.worktreePath,
+      task.id,
+    )
+
+    const discardedTask = await this.transition(id, 'discarded')
+
+    await this.auditService.append({
+      taskId: task.id,
+      type: 'task.discarded',
+      payload: {
+        worktreePath: task.worktreePath,
+      },
+    })
+
+    return discardedTask
   }
 
   async cancel(id: string): Promise<Task> {

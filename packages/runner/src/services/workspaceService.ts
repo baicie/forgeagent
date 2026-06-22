@@ -5,12 +5,15 @@ import {
   isSensitivePath,
 } from '@forgeagent/core'
 import { randomUUID } from 'node:crypto'
-import { access } from 'node:fs/promises'
 import { basename, resolve } from 'node:path'
 import type { RunnerDb } from '../db'
+import type { GitRepositoryService } from '../git/repository'
 
 export class WorkspaceService {
-  constructor(private readonly db: RunnerDb) {}
+  constructor(
+    private readonly db: RunnerDb,
+    private readonly gitRepositoryService: GitRepositoryService,
+  ) {}
 
   list(): Workspace[] {
     return this.db.state.workspaces
@@ -49,22 +52,32 @@ export class WorkspaceService {
       )
     }
 
-    await access(repoPath)
+    const repositoryInfo =
+      await this.gitRepositoryService.getRepositoryInfo(repoPath)
 
     const now = new Date().toISOString()
     const existing = this.db.state.workspaces.find(
-      workspace => workspace.repoPath === repoPath,
+      workspace => workspace.gitRoot === repositoryInfo.gitRoot,
     )
 
     if (existing) {
+      existing.repoPath = repositoryInfo.repoPath
+      existing.currentBranch = repositoryInfo.currentBranch
+      existing.currentCommit = repositoryInfo.currentCommit
+      existing.updatedAt = now
+
+      await this.db.save()
+
       return existing
     }
 
     const workspace: Workspace = {
       id: `ws_${randomUUID()}`,
-      name: input.name || basename(repoPath),
-      repoPath,
-      gitRoot: repoPath,
+      name: input.name || basename(repositoryInfo.gitRoot),
+      repoPath: repositoryInfo.repoPath,
+      gitRoot: repositoryInfo.gitRoot,
+      currentBranch: repositoryInfo.currentBranch,
+      currentCommit: repositoryInfo.currentCommit,
       createdAt: now,
       updatedAt: now,
     }

@@ -37,10 +37,16 @@ export const CreateTaskInputSchema = z.object({
 export type CreateTaskInput = z.infer<typeof CreateTaskInputSchema>
 
 const TASK_STATUS_TRANSITIONS: Record<TaskStatus, readonly TaskStatus[]> = {
-  created: ['preparing', 'cancelled', 'failed'],
-  preparing: ['running', 'cancelled', 'failed'],
-  running: ['waiting_approval', 'completed', 'cancelled', 'failed'],
-  waiting_approval: ['running', 'cancelled', 'failed'],
+  created: ['preparing', 'cancelled', 'failed', 'discarded'],
+  preparing: ['running', 'cancelled', 'failed', 'discarded'],
+  running: [
+    'waiting_approval',
+    'completed',
+    'cancelled',
+    'failed',
+    'discarded',
+  ],
+  waiting_approval: ['running', 'cancelled', 'failed', 'discarded'],
   completed: ['applied', 'committed', 'discarded'],
   failed: ['discarded'],
   cancelled: ['discarded'],
