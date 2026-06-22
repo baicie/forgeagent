@@ -1,10 +1,7 @@
+import { CreateTaskInputSchema } from '@forgeagent/core'
 import type { FastifyInstance } from 'fastify'
 import type { RunnerContext } from '../context'
-
-interface CreateTaskBody {
-  workspaceId: string
-  prompt: string
-}
+import { parseBody } from '../validation'
 
 export function registerTaskRoutes(
   app: FastifyInstance,
@@ -20,10 +17,9 @@ export function registerTaskRoutes(
     context.taskService.get(request.params.id),
   )
 
-  app.post<{
-    Body: CreateTaskBody
-  }>('/api/tasks', async (request, reply) => {
-    const task = await context.taskService.create(request.body)
+  app.post('/api/tasks', async (request: any, reply) => {
+    const input = parseBody(CreateTaskInputSchema, request.body)
+    const task = await context.taskService.create(input)
 
     return reply.status(201).send(task)
   })

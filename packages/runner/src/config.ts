@@ -13,6 +13,8 @@ export const DEFAULT_RUNNER_PORT = 17890
 export const RUNNER_NAME = 'forgeagent-runner'
 export const RUNNER_VERSION = '0.1.0'
 
+const LOCALHOST_HOSTS = new Set(['127.0.0.1', 'localhost', '::1'])
+
 export interface LoadRunnerConfigOptions {
   host?: string
   port?: number
@@ -27,14 +29,34 @@ export function resolveDataDir(dataDir?: string): string {
   return resolve(homedir(), '.forgeagent')
 }
 
+export function assertLocalRunnerHost(host: string): void {
+  if (!LOCALHOST_HOSTS.has(host)) {
+    throw new Error(`Local Runner only supports localhost host in MVP: ${host}`)
+  }
+}
+
+export function parseRunnerPort(port: unknown): number {
+  const parsed = Number(port)
+
+  if (!Number.isInteger(parsed) || parsed <= 0 || parsed > 65535) {
+    throw new Error(`Invalid runner port: ${String(port)}`)
+  }
+
+  return parsed
+}
+
 export function loadRunnerConfig(
   options: LoadRunnerConfigOptions = {},
 ): RunnerConfig {
   const host =
     options.host || process.env.FORGEAGENT_RUNNER_HOST || DEFAULT_RUNNER_HOST
-  const port = Number(
+
+  assertLocalRunnerHost(host)
+
+  const port = parseRunnerPort(
     options.port || process.env.FORGEAGENT_RUNNER_PORT || DEFAULT_RUNNER_PORT,
   )
+
   const dataDir = resolveDataDir(
     options.dataDir || process.env.FORGEAGENT_DATA_DIR,
   )

@@ -1,3 +1,4 @@
+import type { TaskEvent } from '@forgeagent/core'
 import type { FastifyInstance } from 'fastify'
 import type { RunnerContext } from '../context'
 
@@ -17,14 +18,13 @@ export function registerEventRoutes(
 
     const events = context.eventService.listTaskEvents(request.params.id)
 
-    const common = {
+    reply.hijack()
+    reply.raw.writeHead(200, {
       'Content-Type': 'text/event-stream; charset=utf-8',
       'Cache-Control': 'no-cache, no-transform',
       'X-Accel-Buffering': 'no',
-    }
-    const extra = { Connection: 'keep-alive' }
-
-    reply.raw.writeHead(200, { ...common, ...extra })
+      Connection: 'keep-alive',
+    })
 
     for (const event of events) {
       reply.raw.write(toSse(event.type, event))
@@ -32,8 +32,15 @@ export function registerEventRoutes(
 
     if (request.query.once === '1') {
       reply.raw.end()
-      return reply
+      return
     }
+
+    const unsubscribe = context.eventService.subscribe(
+      request.params.id,
+      (event: TaskEvent) => {
+        reply.raw.write(toSse(event.type, event))
+      },
+    )
 
     const heartbeat = setInterval(() => {
       reply.raw.write(': heartbeat\n\n')
@@ -41,8 +48,7 @@ export function registerEventRoutes(
 
     request.raw.on('close', () => {
       clearInterval(heartbeat)
+      unsubscribe()
     })
-
-    return reply
   })
 }

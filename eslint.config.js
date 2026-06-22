@@ -34,6 +34,7 @@ export default antfu(
       'antfu/consistent-list-newline': 'off',
       'antfu/brace-style': 'off',
       'style/brace-style': 'off',
+      'style/quote-props': 'off',
       'style/arrow-parens': 'off',
       'style/member-delimiter-style': 'off',
       'style/operator-linebreak': 'off',

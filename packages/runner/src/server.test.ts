@@ -267,4 +267,77 @@ describe('runner server', () => {
       await app.close()
     }
   })
+
+  it('returns 400 for invalid workspace body', async () => {
+    const app = await createTestServer()
+
+    try {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/workspaces',
+        payload: {},
+      })
+
+      expect(response.statusCode).toBe(400)
+      expect(response.json().error.code).toBe('BAD_REQUEST')
+    } finally {
+      await app.close()
+    }
+  })
+
+  it('returns 400 for invalid task body', async () => {
+    const app = await createTestServer()
+
+    try {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/tasks',
+        payload: {},
+      })
+
+      expect(response.statusCode).toBe(400)
+      expect(response.json().error.code).toBe('BAD_REQUEST')
+    } finally {
+      await app.close()
+    }
+  })
+
+  it('returns 409 when applying a task that is not completed', async () => {
+    const app = await createTestServer()
+    const repoPath = join(tempDir, 'repo')
+    await mkdir(repoPath, { recursive: true })
+
+    try {
+      const workspaceResponse = await app.inject({
+        method: 'POST',
+        url: '/api/workspaces',
+        payload: { repoPath },
+      })
+
+      const workspace = workspaceResponse.json() as { id: string }
+
+      const taskResponse = await app.inject({
+        method: 'POST',
+        url: '/api/tasks',
+        payload: {
+          workspaceId: workspace.id,
+          prompt: 'fix bug',
+        },
+      })
+
+      const task = taskResponse.json() as { id: string }
+
+      const applyResponse = await app.inject({
+        method: 'POST',
+        url: `/api/tasks/${task.id}/apply`,
+      })
+
+      expect(applyResponse.statusCode).toBe(409)
+      expect(applyResponse.json().error.code).toBe(
+        'INVALID_TASK_STATUS_TRANSITION',
+      )
+    } finally {
+      await app.close()
+    }
+  })
 })

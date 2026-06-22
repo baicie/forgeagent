@@ -1,10 +1,7 @@
+import { CreateWorkspaceInputSchema } from '@forgeagent/core'
 import type { FastifyInstance } from 'fastify'
 import type { RunnerContext } from '../context'
-
-interface CreateWorkspaceBody {
-  repoPath: string
-  name?: string
-}
+import { parseBody } from '../validation'
 
 export function registerWorkspaceRoutes(
   app: FastifyInstance,
@@ -20,10 +17,9 @@ export function registerWorkspaceRoutes(
     context.workspaceService.get(request.params.id),
   )
 
-  app.post<{
-    Body: CreateWorkspaceBody
-  }>('/api/workspaces', async (request, reply) => {
-    const workspace = await context.workspaceService.create(request.body)
+  app.post('/api/workspaces', async (request: any, reply) => {
+    const input = parseBody(CreateWorkspaceInputSchema, request.body)
+    const workspace = await context.workspaceService.create(input)
 
     return reply.status(201).send(workspace)
   })

@@ -1,5 +1,6 @@
 import type { ForgeAgentError } from '@forgeagent/core'
 import type { FastifyInstance } from 'fastify'
+import type { BadRequestError } from './validation'
 
 export interface HttpErrorPayload {
   error: {
@@ -11,6 +12,9 @@ export interface HttpErrorPayload {
 
 export function statusFromErrorCode(code: string): number {
   switch (code) {
+    case 'BAD_REQUEST':
+      return 400
+
     case 'WORKSPACE_NOT_FOUND':
     case 'TASK_NOT_FOUND':
     case 'APPROVAL_NOT_FOUND':
@@ -32,19 +36,22 @@ export function statusFromErrorCode(code: string): number {
 
 export function registerErrorHandler(app: FastifyInstance): void {
   app.setErrorHandler((error, _request, reply) => {
-    const fastifyError = error as Error & Partial<ForgeAgentError>
-    const code = fastifyError.code || 'UNKNOWN_ERROR'
+    const typedError = error as Error &
+      Partial<ForgeAgentError> &
+      Partial<BadRequestError>
+
+    const code = typedError.code || 'UNKNOWN_ERROR'
     const status = statusFromErrorCode(code)
 
     const payload: HttpErrorPayload = {
       error: {
         code,
-        message: fastifyError.message,
+        message: typedError.message,
       },
     }
 
-    if (fastifyError.details !== undefined) {
-      payload.error.details = fastifyError.details
+    if (typedError.details !== undefined) {
+      payload.error.details = typedError.details
     }
 
     reply.status(status).send(payload)
