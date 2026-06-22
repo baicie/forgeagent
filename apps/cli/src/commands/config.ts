@@ -2,11 +2,13 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { Command } from 'commander'
 import pc from 'picocolors'
 
+const CONFIG_FILE = './forgeagent.config.json'
+
 const showCommand = new Command('show')
   .description('Show current configuration')
   .action(async () => {
     try {
-      const content = await readFile('./agent.config.json', 'utf-8')
+      const content = await readFile(CONFIG_FILE, 'utf-8')
       console.log(pc.green('Current config:'))
       console.log(JSON.stringify(JSON.parse(content), null, 2))
     } catch {
@@ -23,15 +25,17 @@ const initCommand = new Command('init')
       skillsDir: './skills',
       maxSteps: 20,
     }
+
     await writeFile(
-      './agent.config.json',
+      CONFIG_FILE,
       JSON.stringify(defaultConfig, null, 2),
       'utf-8',
     )
-    console.log(pc.green('Config file created: agent.config.json'))
+
+    console.log(pc.green(`Config file created: ${CONFIG_FILE}`))
   })
 
 export const configCommand = new Command('config')
-  .description('Manage agent configuration')
+  .description('Manage ForgeAgent configuration')
   .addCommand(showCommand)
   .addCommand(initCommand)

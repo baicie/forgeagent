@@ -11,6 +11,7 @@
     "build": "pnpm -r build",
     "build:all": "pnpm -r build",
     "clean": "pnpm -r exec rm -rf dist temp coverage *.tsbuildinfo",
+    "check": "pnpm typecheck",
     "lint": "eslint --cache --cache-location node_modules/.cache/.eslintcache .",
     "lint:fix": "pnpm lint --fix",
     "format": "prettier --write --cache --cache-location node_modules/.cache/.prettiercache .",

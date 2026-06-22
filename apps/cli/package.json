@@ -4,11 +4,19 @@
   "version": "0.1.0",
   "description": "ForgeAgent OS CLI",
   "license": "MIT",
-  "keywords": ["forgeagent", "agent", "cli", "ai", "agent-os"],
+  "keywords": [
+    "forgeagent",
+    "agent",
+    "cli",
+    "ai",
+    "agent-os"
+  ],
   "bin": {
     "forgeagent": "./dist/index.js"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "vite build",
     "dev": "tsx watch src/index.ts",
