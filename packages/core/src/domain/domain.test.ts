@@ -167,4 +167,13 @@ describe('domain models', () => {
       details: { path: '../secret' },
     })
   })
+
+  it('omits undefined error details from JSON payload', () => {
+    const error = createForgeAgentError('UNKNOWN_ERROR', 'Unknown error')
+
+    expect(error.toJSON()).toEqual({
+      code: 'UNKNOWN_ERROR',
+      message: 'Unknown error',
+    })
+  })
 })

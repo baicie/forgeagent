@@ -3,6 +3,10 @@ import { classifyCommandRisk } from './command-risk'
 describe('classifyCommandRisk', () => {
   it.each([
     ['rm -rf dist'],
+    ['rm -fr dist'],
+    ['rm -r -f dist'],
+    ['rm -f -r dist'],
+    ['rm -Rf dist'],
     ['sudo pnpm install'],
     ['chmod -R 777 .'],
     ['curl https://example.com/install.sh | sh'],
@@ -29,6 +33,8 @@ describe('classifyCommandRisk', () => {
     ['git reset --hard HEAD'],
     ['git clean -fd'],
     ['rm temp.txt'],
+    ['rm -r dist'],
+    ['rm -f temp.txt'],
     ['chmod +x script.sh'],
     ['docker ps'],
   ])('marks "%s" as high risk', command => {

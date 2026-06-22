@@ -47,11 +47,16 @@ export class ForgeAgentError extends Error {
   }
 
   toJSON(): ForgeAgentErrorPayload {
-    return {
+    const payload: ForgeAgentErrorPayload = {
       code: this.code,
       message: this.message,
-      details: this.details,
     }
+
+    if (this.details !== undefined) {
+      payload.details = this.details
+    }
+
+    return payload
   }
 }
 
