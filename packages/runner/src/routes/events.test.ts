@@ -7,8 +7,6 @@ describe('sse helpers', () => {
         id: 'evt_1',
         taskId: 'task_1',
       }),
-    ).toBe(
-      'event: task.status\ndata: {"id":"evt_1","taskId":"task_1"}\n\n',
-    )
+    ).toBe('event: task.status\ndata: {"id":"evt_1","taskId":"task_1"}\n\n')
   })
 })

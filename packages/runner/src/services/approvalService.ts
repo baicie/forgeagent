@@ -1,5 +1,6 @@
-import type { Approval } from '@forgeagent/core'
+import type { Approval, CreateApprovalInput } from '@forgeagent/core'
 import { createForgeAgentError, isApprovalResolved } from '@forgeagent/core'
+import { randomUUID } from 'node:crypto'
 import type { RunnerDb } from '../db'
 import type { AuditService } from './auditService'
 import type { EventService } from './eventService'
@@ -25,6 +26,51 @@ export class ApprovalService {
         { id },
       )
     }
+
+    return approval
+  }
+
+  async create(input: CreateApprovalInput): Promise<Approval> {
+    const approval: Approval = {
+      id: `approval_${randomUUID()}`,
+      taskId: input.taskId,
+      toolCallId: input.toolCallId,
+      command: input.command,
+      cwd: input.cwd,
+      reason: input.reason,
+      risk: input.risk,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+    }
+
+    this.db.state.approvals.push(approval)
+    await this.db.save()
+
+    await this.eventService.append({
+      taskId: approval.taskId,
+      type: 'approval.required',
+      payload: {
+        approvalId: approval.id,
+        toolCallId: approval.toolCallId,
+        command: approval.command,
+        cwd: approval.cwd,
+        reason: approval.reason,
+        risk: approval.risk,
+      },
+    })
+
+    await this.auditService.append({
+      taskId: approval.taskId,
+      type: 'approval.required',
+      payload: {
+        approvalId: approval.id,
+        toolCallId: approval.toolCallId,
+        command: approval.command,
+        cwd: approval.cwd,
+        reason: approval.reason,
+        risk: approval.risk,
+      },
+    })
 
     return approval
   }

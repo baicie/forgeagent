@@ -35,9 +35,9 @@ describe('task status machine', () => {
     expect(canTransitionTaskStatus('cancelled', 'applied')).toBe(false)
     expect(canTransitionTaskStatus('applied', 'running')).toBe(false)
 
-    expect(() =>
-      assertTaskStatusTransition('created', 'completed'),
-    ).toThrow('Invalid task status transition: created -> completed')
+    expect(() => assertTaskStatusTransition('created', 'completed')).toThrow(
+      'Invalid task status transition: created -> completed',
+    )
   })
 
   it('returns allowed transitions', () => {

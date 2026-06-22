@@ -82,7 +82,9 @@ describe('taskService', () => {
 
       // The discard should have been called to clean up the worktree.
       expect(gitWorktreeService.discard).toHaveBeenCalledTimes(1)
-      const discardCall = (gitWorktreeService.discard as ReturnType<typeof vi.fn>).mock.calls[0]
+      const discardCall = (
+        gitWorktreeService.discard as ReturnType<typeof vi.fn>
+      ).mock.calls[0]
       expect(discardCall[0]).toBe('/repo')
       expect(discardCall[1]).toBe('/tmp/forgeagent/worktrees/task_abc')
       expect(discardCall[2]).toMatch(/^task_/)

@@ -59,9 +59,7 @@ describe('gitRepositoryService', () => {
     const missingPath = join(tmpdir(), 'this-path-does-not-exist-at-all')
     const service = new GitRepositoryService(new GitClient())
 
-    await expect(
-      service.getRepositoryInfo(missingPath),
-    ).rejects.toMatchObject({
+    await expect(service.getRepositoryInfo(missingPath)).rejects.toMatchObject({
       code: 'INVALID_GIT_REPO',
     })
   })

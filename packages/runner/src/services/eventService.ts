@@ -1,7 +1,4 @@
-import {
-  TaskEventSchema,
-  parseCreateTaskEventInput,
-} from '@forgeagent/core'
+import { TaskEventSchema, parseCreateTaskEventInput } from '@forgeagent/core'
 import type { CreateTaskEventInput, TaskEvent } from '@forgeagent/core'
 import { randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
