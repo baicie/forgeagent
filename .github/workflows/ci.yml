@@ -3,9 +3,9 @@ name: CI
 on:
   push:
     branches:
-      - '**'
+      - "**"
     tags-ignore:
-      - 'v*'
+      - "v*"
   pull_request:
     branches:
       - main
@@ -34,7 +34,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm format:check
-      - run: pnpm check
+      - run: pnpm typecheck
 
   test:
     name: Test

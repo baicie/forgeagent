@@ -1,35 +1,19 @@
 #!/usr/bin/env node
-import { Command } from 'commander'
-import { chatCommand } from './commands/chat'
-import { configCommand } from './commands/config'
-import { runCommand } from './commands/run'
-import { skillCommand } from './commands/skill'
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { createCliProgram } from "./cli";
 
-const program = new Command()
+export function isCliEntrypoint(
+  metaUrl = import.meta.url,
+  argv1 = process.argv[1],
+) {
+  if (!argv1) {
+    return false;
+  }
 
-program.name('agent').description('Universal Agent CLI').version('0.1.0')
+  return fileURLToPath(metaUrl) === resolve(argv1);
+}
 
-program
-  .command('chat')
-  .description('Start an interactive chat session')
-  .argument('[prompt]', 'Initial prompt')
-  .option('-w, --workspace <path>', 'Workspace directory', process.cwd())
-  .option('-m, --model <name>', 'Model to use', 'openai/gpt-4.1')
-  .action(chatCommand)
-
-program
-  .command('run')
-  .description('Run a single task')
-  .argument('<task>', 'Task description')
-  .option('-w, --workspace <path>', 'Workspace directory', process.cwd())
-  .option('-m, --model <name>', 'Model to use', 'openai/gpt-4.1')
-  .action(runCommand)
-
-program.command('skill').description('Manage skills').addCommand(skillCommand)
-
-program
-  .command('config')
-  .description('Manage configuration')
-  .addCommand(configCommand)
-
-program.parse()
+if (isCliEntrypoint()) {
+  createCliProgram().parse();
+}

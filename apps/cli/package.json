@@ -1,20 +1,14 @@
 {
-  "name": "@agent/cli",
+  "name": "@forgeagent/cli",
   "type": "module",
   "version": "0.1.0",
-  "description": "Universal Agent CLI",
+  "description": "ForgeAgent OS CLI",
   "license": "MIT",
-  "keywords": [
-    "agent",
-    "cli",
-    "ai"
-  ],
+  "keywords": ["forgeagent", "agent", "cli", "ai", "agent-os"],
   "bin": {
-    "agent": "./dist/index.js"
+    "forgeagent": "./dist/index.js"
   },
-  "files": [
-    "dist"
-  ],
+  "files": ["dist"],
   "scripts": {
     "build": "vite build",
     "dev": "tsx watch src/index.ts",
@@ -23,7 +17,7 @@
     "test": "vitest"
   },
   "dependencies": {
-    "@agent/core": "workspace:*",
+    "@forgeagent/core": "workspace:*",
     "commander": "^15.0.0",
     "picocolors": "^1.1.1"
   },
@@ -31,6 +25,7 @@
     "@types/node": "^26.0.0",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
-    "vite": "^8.0.16"
+    "vite": "^8.0.16",
+    "vitest": "^4.1.9"
   }
 }

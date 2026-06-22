@@ -2,8 +2,8 @@
   "extends": ["./scripts/tsconfig.base.json"],
   "compilerOptions": {
     "paths": {
-      "@agent/core": ["./packages/core/src/index.ts"],
-      "@agent/core/*": ["./packages/core/src/*"]
+      "@forgeagent/core": ["./packages/core/src/index.ts"],
+      "@forgeagent/core/*": ["./packages/core/src/*"]
     },
     "types": ["node", "vitest/globals"],
     "noEmit": true

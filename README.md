@@ -1,15 +1,56 @@
-# Universal Agent
+# ForgeAgent OS
 
-通用型 Agent Runtime，支持多模型、多工具、插件化 Skill 系统。
+ForgeAgent OS 是一个面向开发者和企业私有化环境的工程 Agent 操作系统。
 
-## 特性
+第一阶段目标不是做完整企业平台，也不是做完整 AI IDE，而是先完成：
 
-- **多模型支持**：OpenAI、OpenRouter、Ollama、本地模型
-- **插件化 Skill 系统**：SKILL.md 格式，动态加载
-- **内置工具**：文件读写、搜索、命令执行、HTTP 请求
-- **安全沙箱**：路径隔离、危险命令拦截、权限分级
-- **事件驱动**：完整的事件系统，支持实时状态展示
-- **TypeScript-first**：完整类型支持
+```txt
+Local-first Coding Agent + Web Console Lite
+```
+
+MVP 要跑通的最小闭环：
+
+```txt
+1. forgeagent runner start
+2. 选择本地 Git 仓库
+3. 输入任务
+4. Agent 创建隔离 git worktree
+5. Agent 生成计划
+6. Agent 搜索 / 读取代码
+7. Agent 请求执行命令
+8. 用户审批命令
+9. Agent 修改 worktree 文件
+10. Agent 运行测试
+11. 展示 diff
+12. 用户 apply / commit / discard
+```
+
+## 当前状态
+
+当前仓库处于 Phase 0：项目身份与模板收敛。
+
+本阶段只做：
+
+```txt
+universal-agent → ForgeAgent
+@agent/core     → @forgeagent/core
+@agent/cli      → @forgeagent/cli
+agent           → forgeagent
+```
+
+Runner、Web Console、worktree、审批、diff 等能力会在后续 Phase 中逐步实现。
+
+## 核心原则
+
+```txt
+Local-first
+Private-first
+Runner-based
+Approval-first
+Auditable
+Model-agnostic
+Git-native
+```
 
 ## 快速开始
 
@@ -22,11 +63,10 @@ pnpm install
 ### 开发
 
 ```bash
-# 启动 CLI（热重载）
 pnpm dev
 
-# 或直接运行
-pnpm --filter @agent/cli dev
+# 或直接运行 CLI 包
+pnpm --filter @forgeagent/cli dev
 ```
 
 ### 构建
@@ -38,102 +78,83 @@ pnpm build
 ### 测试
 
 ```bash
-pnpm test        # watch mode
-pnpm test:run    # run once
+pnpm test
+pnpm test:run
 pnpm test:coverage
+```
+
+### 类型检查
+
+```bash
+pnpm typecheck
 ```
 
 ### 代码检查
 
 ```bash
-pnpm lint        # eslint
-pnpm lint:fix    # auto fix
-pnpm format      # prettier
+pnpm lint
+pnpm lint:fix
+pnpm format
 pnpm format:check
-pnpm check       # tsc
+```
+
+## CLI 命令
+
+Phase 0 仍保留模板 CLI 能力，用于后续迁移。
+
+```bash
+forgeagent chat
+
+forgeagent run "帮我分析这个 bug"
+
+forgeagent skill list
+
+forgeagent config init
+```
+
+后续 Phase 会新增：
+
+```bash
+forgeagent runner start
+forgeagent workspace add /path/to/repo
+forgeagent task create --workspace <id> --prompt "..."
+forgeagent task watch <taskId>
+forgeagent task diff <taskId>
+forgeagent task apply <taskId>
+forgeagent task commit <taskId> --message "..."
+forgeagent task discard <taskId>
 ```
 
 ## 项目结构
 
-```
-universal-agent/
+```txt
+forgeagent/
 ├─ apps/
-│  └─ cli/           # 命令行入口
+│  └─ cli/              # ForgeAgent CLI
 ├─ packages/
-│  └─ core/          # Agent Runtime 核心库
-├─ skills/           # 内置 Skills
-│  ├─ coding/
-│  ├─ log-summary/
-│  └─ writing/
-├─ docs/             # VitePress 文档
-├─ scripts/          # 共享 tsconfig
-└─ .github/workflows/
+│  └─ core/             # ForgeAgent OS core runtime
+├─ skills/              # 内置 Skills
+├─ docs/                # 项目文档
+├─ scripts/             # 共享 tsconfig
+└─ .github/workflows/   # CI
 ```
 
 ## 文档
 
-````bash
-pnpm docs:dev      # 开发模式
-pnpm docs:build    # 构建静态站点
-pnpm docs:preview  # 预览
-
-## CLI 命令
-
 ```bash
-# 交互式聊天
-agent chat
-
-# 单次任务
-agent run "帮我分析这个 bug"
-
-# 查看技能列表
-agent skill list
-
-# 初始化配置
-agent config init
-````
-
-## 开发指南
-
-### 添加新工具
-
-在 `packages/core/src/tools/` 中创建工具，使用 `@openai/agents` 的 `tool()` 封装：
-
-```ts
-import { tool } from '@openai/agents'
-import { z } from 'zod'
-
-export const myTool = tool({
-  name: 'my_tool',
-  description: '描述工具用途',
-  parameters: z.object({ input: z.string() }),
-  async execute({ input }, ctx) {
-    // 工具实现
-    return { result: input }
-  },
-})
+pnpm docs:dev
+pnpm docs:build
+pnpm docs:preview
 ```
 
-### 添加新 Skill
+重要文档：
 
-在 `skills/` 中创建目录，添加 `SKILL.md`：
-
-```md
----
-name: my-skill
-description: 技能描述
-triggers:
-  - 关键词1
-  - 关键词2
-permissions:
-  - read
-tools:
-  - read_file
----
-
-# My Skill
-
-你是...（详细的 Skill 指令）
+```txt
+docs/roadmap.md
+docs/mvp.md
+docs/security.md
+docs/runner.md
+docs/agent-loop.md
 ```
 
 ## License

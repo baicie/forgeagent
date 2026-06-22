@@ -1,5 +1,5 @@
 {
-  "name": "universal-agent",
+  "name": "forgeagent",
   "type": "module",
   "private": true,
   "packageManager": "pnpm@10.34.3",
@@ -7,11 +7,10 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "dev": "pnpm --filter @agent/cli dev",
+    "dev": "pnpm --filter @forgeagent/cli dev",
     "build": "pnpm -r build",
     "build:all": "pnpm -r build",
     "clean": "pnpm -r exec rm -rf dist temp coverage *.tsbuildinfo",
-    "check": "tsc --noEmit",
     "lint": "eslint --cache --cache-location node_modules/.cache/.eslintcache .",
     "lint:fix": "pnpm lint --fix",
     "format": "prettier --write --cache --cache-location node_modules/.cache/.prettiercache .",

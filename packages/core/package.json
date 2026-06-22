@@ -1,15 +1,19 @@
 {
-  "name": "@agent/core",
+  "name": "@forgeagent/core",
   "type": "module",
   "version": "0.1.0",
-  "description": "Universal Agent Runtime - core library",
+  "description": "ForgeAgent OS core runtime",
   "license": "MIT",
   "keywords": [
+    "forgeagent",
     "agent",
+    "agent-os",
     "ai",
     "runtime",
     "tool",
-    "skill"
+    "skill",
+    "local-first",
+    "private-first"
   ],
   "exports": {
     ".": {
@@ -21,9 +25,7 @@
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "files": [
-    "dist"
-  ],
+  "files": ["dist"],
   "scripts": {
     "build": "vite build",
     "dev": "vite build --watch",
