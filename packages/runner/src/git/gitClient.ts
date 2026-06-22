@@ -16,8 +16,20 @@ export interface GitCommandResult {
 
 interface ExecFileError extends Error {
   code?: number | string
-  stdout?: string
-  stderr?: string
+  stdout?: string | Buffer
+  stderr?: string | Buffer
+}
+
+function normalizeOutput(value: unknown): string {
+  if (typeof value === 'string') {
+    return value
+  }
+
+  if (Buffer.isBuffer(value)) {
+    return value.toString('utf-8')
+  }
+
+  return ''
 }
 
 export class GitClient {
@@ -34,13 +46,13 @@ export class GitClient {
       })
 
       return {
-        stdout: String(result.stdout),
-        stderr: String(result.stderr),
+        stdout: normalizeOutput(result.stdout),
+        stderr: normalizeOutput(result.stderr),
       }
     } catch (error) {
       const gitError = error as ExecFileError
-      const stderr = String(gitError.stderr)
-      const stdout = String(gitError.stdout)
+      const stderr = normalizeOutput(gitError.stderr)
+      const stdout = normalizeOutput(gitError.stdout)
       const message = stderr.trim() || gitError.message
 
       throw createForgeAgentError(

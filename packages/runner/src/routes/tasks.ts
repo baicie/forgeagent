@@ -17,12 +17,44 @@ export function registerTaskRoutes(
     context.taskService.get(request.params.id),
   )
 
-  app.post('/api/tasks', async (request: any, reply) => {
+  app.post('/api/tasks', async (request, reply) => {
     const input = parseBody(CreateTaskInputSchema, request.body)
     const task = await context.taskService.create(input)
 
     return reply.status(201).send(task)
   })
+
+  app.post<{
+    Params: { id: string }
+  }>('/api/tasks/:id/prepare', async request =>
+    context.taskService.prepare(request.params.id),
+  )
+
+  app.post<{
+    Params: { id: string }
+  }>('/api/tasks/:id/start', async request =>
+    context.taskService.start(request.params.id),
+  )
+
+  app.post<{
+    Params: { id: string }
+  }>('/api/tasks/:id/wait-approval', async request =>
+    context.taskService.waitForApproval(request.params.id),
+  )
+
+  app.post<{
+    Params: { id: string }
+  }>('/api/tasks/:id/complete', async request =>
+    context.taskService.complete(request.params.id),
+  )
+
+  app.post<{
+    Params: { id: string }
+  }>('/api/tasks/:id/fail', async request =>
+    context.taskService.fail(request.params.id, {
+      message: 'Task failed',
+    }),
+  )
 
   app.get<{
     Params: { id: string }

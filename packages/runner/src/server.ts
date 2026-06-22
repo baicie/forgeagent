@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify'
 import { loadRunnerConfig } from './config'
 import type { LoadRunnerConfigOptions, RunnerConfig } from './config'
 import { createRunnerContext } from './context'
+import type { RunnerContext } from './context'
 import { createJsonFileRunnerDb } from './db'
 import type { RunnerDb } from './db'
 import { registerErrorHandler } from './http'
@@ -14,6 +15,10 @@ import {
   registerWorkspaceRoutes,
 } from './routes'
 
+export interface RunnerServerInstance extends FastifyInstance {
+  forgeagent: RunnerContext
+}
+
 export interface CreateRunnerServerOptions extends LoadRunnerConfigOptions {
   config?: RunnerConfig
   db?: RunnerDb
@@ -22,7 +27,7 @@ export interface CreateRunnerServerOptions extends LoadRunnerConfigOptions {
 
 export async function createRunnerServer(
   options: CreateRunnerServerOptions = {},
-): Promise<FastifyInstance> {
+): Promise<RunnerServerInstance> {
   const config = options.config || loadRunnerConfig(options)
   const db = options.db || createJsonFileRunnerDb(config.dbFile)
 
@@ -30,7 +35,7 @@ export async function createRunnerServer(
 
   const app = fastify({
     logger: options.logger ?? false,
-  })
+  }) as unknown as RunnerServerInstance
 
   const context = createRunnerContext(config, db)
 
@@ -48,7 +53,7 @@ export async function createRunnerServer(
 
 export async function startRunnerServer(
   options: CreateRunnerServerOptions = {},
-): Promise<FastifyInstance> {
+): Promise<RunnerServerInstance> {
   const app = await createRunnerServer(options)
   const config = options.config || loadRunnerConfig(options)
 

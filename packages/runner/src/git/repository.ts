@@ -17,7 +17,25 @@ export class GitRepositoryService {
   async getRepositoryInfo(repoPath: string): Promise<GitRepositoryInfo> {
     const resolvedRepoPath = resolve(repoPath)
 
-    await access(resolvedRepoPath)
+    try {
+      await access(resolvedRepoPath)
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+
+      if (code === 'ENOENT' || code === 'EACCES') {
+        throw createForgeAgentError(
+          'INVALID_GIT_REPO',
+          `Git repository path is not accessible: ${repoPath}`,
+          {
+            repoPath,
+            resolvedRepoPath,
+            cause: error instanceof Error ? error.message : String(error),
+          },
+        )
+      }
+
+      throw error
+    }
 
     const gitRoot = await this.getGitRoot(resolvedRepoPath)
     const currentBranch = await this.getCurrentBranch(gitRoot)

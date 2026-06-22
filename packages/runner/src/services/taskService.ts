@@ -52,55 +52,119 @@ export class TaskService {
       workspace.gitRoot,
     )
     const taskId = `task_${randomUUID()}`
-    const worktree = await this.gitWorktreeService.create({
-      gitRoot: repositoryInfo.gitRoot,
-      taskId,
-      dataDir: this.config.dataDir,
-    })
-    const now = new Date().toISOString()
 
-    const task: Task = {
-      id: taskId,
-      workspaceId: workspace.id,
-      prompt: input.prompt,
-      status: 'created',
-      baseBranch: repositoryInfo.currentBranch,
-      baseCommit: repositoryInfo.currentCommit,
-      worktreePath: worktree.worktreePath,
-      createdAt: now,
-      updatedAt: now,
+    let worktreePath: string | undefined
+
+    try {
+      const worktree = await this.gitWorktreeService.create({
+        gitRoot: repositoryInfo.gitRoot,
+        taskId,
+        dataDir: this.config.dataDir,
+      })
+
+      worktreePath = worktree.worktreePath
+
+      const now = new Date().toISOString()
+
+      const task: Task = {
+        id: taskId,
+        workspaceId: workspace.id,
+        prompt: input.prompt,
+        status: 'created',
+        baseBranch: repositoryInfo.currentBranch,
+        baseCommit: repositoryInfo.currentCommit,
+        worktreePath: worktree.worktreePath,
+        createdAt: now,
+        updatedAt: now,
+      }
+
+      this.db.state.tasks.push(task)
+      await this.db.save()
+
+      await this.eventService.append({
+        taskId: task.id,
+        type: 'task.status',
+        payload: {
+          status: task.status,
+          worktreePath: task.worktreePath,
+          baseBranch: task.baseBranch,
+          baseCommit: task.baseCommit,
+        },
+      })
+
+      await this.auditService.append({
+        taskId: task.id,
+        type: 'task.created',
+        payload: {
+          workspaceId: task.workspaceId,
+          prompt: task.prompt,
+          baseBranch: task.baseBranch,
+          baseCommit: task.baseCommit,
+          worktreePath: task.worktreePath,
+        },
+      })
+
+      return task
+    } catch (error) {
+      await this.cleanupFailedTaskCreate({
+        gitRoot: repositoryInfo.gitRoot,
+        taskId,
+        worktreePath,
+      })
+
+      throw error
     }
+  }
 
-    this.db.state.tasks.push(task)
-    await this.db.save()
+  async prepare(id: string, reason?: string): Promise<Task> {
+    return this.transition(id, 'preparing', reason)
+  }
+
+  async start(id: string, reason?: string): Promise<Task> {
+    return this.transition(id, 'running', reason)
+  }
+
+  async waitForApproval(id: string, reason?: string): Promise<Task> {
+    return this.transition(id, 'waiting_approval', reason)
+  }
+
+  async resume(id: string, reason?: string): Promise<Task> {
+    return this.transition(id, 'running', reason)
+  }
+
+  async complete(id: string, output?: unknown): Promise<Task> {
+    const task = await this.transition(id, 'completed', 'Task completed')
 
     await this.eventService.append({
       taskId: task.id,
-      type: 'task.status',
+      type: 'task.completed',
       payload: {
-        status: task.status,
-        worktreePath: task.worktreePath,
-        baseBranch: task.baseBranch,
-        baseCommit: task.baseCommit,
-      },
-    })
-
-    await this.auditService.append({
-      taskId: task.id,
-      type: 'task.created',
-      payload: {
-        workspaceId: task.workspaceId,
-        prompt: task.prompt,
-        baseBranch: task.baseBranch,
-        baseCommit: task.baseCommit,
-        worktreePath: task.worktreePath,
+        output,
       },
     })
 
     return task
   }
 
-  async transition(id: string, status: TaskStatus): Promise<Task> {
+  async fail(id: string, error: unknown): Promise<Task> {
+    const task = await this.transition(id, 'failed', 'Task failed')
+
+    await this.eventService.append({
+      taskId: task.id,
+      type: 'task.failed',
+      payload: {
+        error,
+      },
+    })
+
+    return task
+  }
+
+  async transition(
+    id: string,
+    status: TaskStatus,
+    reason?: string,
+  ): Promise<Task> {
     const task = this.get(id)
 
     if (!canTransitionTaskStatus(task.status, status)) {
@@ -128,6 +192,7 @@ export class TaskService {
       payload: {
         previousStatus,
         status,
+        reason,
       },
     })
 
@@ -137,6 +202,7 @@ export class TaskService {
       payload: {
         previousStatus,
         status,
+        reason,
       },
     })
 
@@ -147,6 +213,15 @@ export class TaskService {
     const task = this.get(id)
     const diff = await this.gitDiffService.getDiff(task.worktreePath)
 
+    await this.eventService.append({
+      taskId: task.id,
+      type: 'diff.updated',
+      payload: {
+        changed: diff.trim().length > 0,
+        bytes: Buffer.byteLength(diff, 'utf-8'),
+      },
+    })
+
     return {
       taskId: id,
       diff,
@@ -154,11 +229,11 @@ export class TaskService {
   }
 
   async apply(id: string): Promise<Task> {
-    return this.transition(id, 'applied')
+    return this.transition(id, 'applied', 'Task applied')
   }
 
   async commit(id: string): Promise<Task> {
-    return this.transition(id, 'committed')
+    return this.transition(id, 'committed', 'Task committed')
   }
 
   async discard(id: string): Promise<Task> {
@@ -176,7 +251,11 @@ export class TaskService {
       task.id,
     )
 
-    const discardedTask = await this.transition(id, 'discarded')
+    const discardedTask = await this.transition(
+      id,
+      'discarded',
+      'Task discarded',
+    )
 
     await this.auditService.append({
       taskId: task.id,
@@ -190,6 +269,43 @@ export class TaskService {
   }
 
   async cancel(id: string): Promise<Task> {
-    return this.transition(id, 'cancelled')
+    return this.transition(id, 'cancelled', 'Task cancelled')
+  }
+
+  private async cleanupFailedTaskCreate(input: {
+    gitRoot: string
+    taskId: string
+    worktreePath?: string
+  }): Promise<void> {
+    if (input.worktreePath) {
+      try {
+        await this.gitWorktreeService.discard(
+          input.gitRoot,
+          input.worktreePath,
+          input.taskId,
+        )
+      } catch {
+        // Best-effort cleanup. Keep the original create() error.
+      }
+    }
+
+    this.db.state.tasks = this.db.state.tasks.filter(
+      task => task.id !== input.taskId,
+    )
+    this.db.state.events = this.db.state.events.filter(
+      event => event.taskId !== input.taskId,
+    )
+    this.db.state.audits = this.db.state.audits.filter(
+      audit => audit.taskId !== input.taskId,
+    )
+    this.db.state.approvals = this.db.state.approvals.filter(
+      approval => approval.taskId !== input.taskId,
+    )
+
+    try {
+      await this.db.save()
+    } catch {
+      // Best-effort cleanup. Keep the original create() error.
+    }
   }
 }

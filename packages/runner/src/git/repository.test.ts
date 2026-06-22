@@ -54,4 +54,25 @@ describe('gitRepositoryService', () => {
       await rm(tempDir, { recursive: true, force: true })
     }
   })
+
+  it('throws structured error for missing repository path (ENOENT)', async () => {
+    const missingPath = join(tmpdir(), 'this-path-does-not-exist-at-all')
+    const service = new GitRepositoryService(new GitClient())
+
+    await expect(
+      service.getRepositoryInfo(missingPath),
+    ).rejects.toMatchObject({
+      code: 'INVALID_GIT_REPO',
+    })
+  })
+
+  it('throws structured error for inaccessible repository path (EACCES)', async () => {
+    const service = new GitRepositoryService(new GitClient())
+
+    await expect(
+      service.getRepositoryInfo('/path/that/does/not/exist'),
+    ).rejects.toMatchObject({
+      code: 'INVALID_GIT_REPO',
+    })
+  })
 })

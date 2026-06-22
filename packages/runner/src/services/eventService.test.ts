@@ -16,6 +16,58 @@ describe('eventService', () => {
     expect(service.listTaskEvents('task_2')).toEqual([])
   })
 
+  it('supports afterId replay', async () => {
+    const db = createInMemoryRunnerDb()
+    const service = new EventService(db)
+
+    const first = await service.append({
+      taskId: 'task_1',
+      type: 'task.status',
+      payload: { status: 'created' },
+    })
+
+    const second = await service.append({
+      taskId: 'task_1',
+      type: 'agent.message',
+      payload: { message: 'hello' },
+    })
+
+    const third = await service.append({
+      taskId: 'task_1',
+      type: 'tool.started',
+      payload: { toolName: 'read_file' },
+    })
+
+    expect(
+      service.listTaskEvents('task_1', {
+        afterId: first.id,
+      }),
+    ).toEqual([second, third])
+  })
+
+  it('supports event limit', async () => {
+    const db = createInMemoryRunnerDb()
+    const service = new EventService(db)
+
+    await service.append({
+      taskId: 'task_1',
+      type: 'task.status',
+      payload: { status: 'created' },
+    })
+
+    await service.append({
+      taskId: 'task_1',
+      type: 'agent.message',
+      payload: { message: 'hello' },
+    })
+
+    expect(
+      service.listTaskEvents('task_1', {
+        limit: 1,
+      }),
+    ).toHaveLength(1)
+  })
+
   it('notifies subscribers for the matching task only', async () => {
     const db = createInMemoryRunnerDb()
     const service = new EventService(db)
@@ -44,5 +96,18 @@ describe('eventService', () => {
     })
 
     expect(task1Listener).toHaveBeenCalledTimes(1)
+  })
+
+  it('validates task event input', async () => {
+    const db = createInMemoryRunnerDb()
+    const service = new EventService(db)
+
+    await expect(
+      service.append({
+        taskId: '',
+        type: 'task.status',
+        payload: {},
+      }),
+    ).rejects.toThrow()
   })
 })

@@ -36,17 +36,30 @@ export const CreateTaskInputSchema = z.object({
 
 export type CreateTaskInput = z.infer<typeof CreateTaskInputSchema>
 
-const TASK_STATUS_TRANSITIONS: Record<TaskStatus, readonly TaskStatus[]> = {
-  created: ['preparing', 'cancelled', 'failed', 'discarded'],
-  preparing: ['running', 'cancelled', 'failed', 'discarded'],
+export const TaskStatusTransitionSchema = z.object({
+  taskId: z.string().min(1),
+  from: TaskStatusSchema,
+  to: TaskStatusSchema,
+  reason: z.string().optional(),
+  createdAt: z.string().datetime(),
+})
+
+export type TaskStatusTransition = z.infer<typeof TaskStatusTransitionSchema>
+
+export const TASK_STATUS_TRANSITIONS: Record<
+  TaskStatus,
+  readonly TaskStatus[]
+> = {
+  created: ['preparing', 'cancelled', 'discarded'],
+  preparing: ['running', 'failed', 'cancelled', 'discarded'],
   running: [
     'waiting_approval',
     'completed',
-    'cancelled',
     'failed',
+    'cancelled',
     'discarded',
   ],
-  waiting_approval: ['running', 'cancelled', 'failed', 'discarded'],
+  waiting_approval: ['running', 'failed', 'cancelled', 'discarded'],
   completed: ['applied', 'committed', 'discarded'],
   failed: ['discarded'],
   cancelled: ['discarded'],
@@ -55,6 +68,21 @@ const TASK_STATUS_TRANSITIONS: Record<TaskStatus, readonly TaskStatus[]> = {
   discarded: [],
 }
 
+export const TASK_TERMINAL_STATUSES = [
+  'applied',
+  'committed',
+  'discarded',
+] as const satisfies readonly TaskStatus[]
+
+export const TASK_FINISHED_STATUSES = [
+  'completed',
+  'failed',
+  'cancelled',
+  'applied',
+  'committed',
+  'discarded',
+] as const satisfies readonly TaskStatus[]
+
 export function canTransitionTaskStatus(
   from: TaskStatus,
   to: TaskStatus,
@@ -62,8 +90,29 @@ export function canTransitionTaskStatus(
   return TASK_STATUS_TRANSITIONS[from].includes(to)
 }
 
+export function assertTaskStatusTransition(
+  from: TaskStatus,
+  to: TaskStatus,
+): void {
+  if (!canTransitionTaskStatus(from, to)) {
+    throw new Error(`Invalid task status transition: ${from} -> ${to}`)
+  }
+}
+
 export function getAllowedTaskStatusTransitions(
   from: TaskStatus,
 ): readonly TaskStatus[] {
   return TASK_STATUS_TRANSITIONS[from]
+}
+
+export function isTaskTerminalStatus(status: TaskStatus): boolean {
+  return TASK_TERMINAL_STATUSES.includes(
+    status as (typeof TASK_TERMINAL_STATUSES)[number],
+  )
+}
+
+export function isTaskFinishedStatus(status: TaskStatus): boolean {
+  return TASK_FINISHED_STATUSES.includes(
+    status as (typeof TASK_FINISHED_STATUSES)[number],
+  )
 }

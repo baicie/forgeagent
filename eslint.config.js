@@ -16,6 +16,7 @@ export default antfu(
       ],
       'no-debugger': 'error',
       'node/prefer-global/process': 'off',
+      'node/prefer-global/buffer': 'off',
       'prefer-const': 'error',
       // Disable stylistic rules — Prettier owns all formatting
       '@stylistic/function-parentheses': 'off',

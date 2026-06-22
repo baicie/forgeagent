@@ -371,4 +371,56 @@ describe('runner server', () => {
       await app.close()
     }
   })
+
+  it('replays historical task events after refresh', async () => {
+    const app = await createTestServer()
+    const fixture = await createGitFixture()
+
+    try {
+      const workspaceResponse = await app.inject({
+        method: 'POST',
+        url: '/api/workspaces',
+        payload: {
+          repoPath: fixture.repoPath,
+        },
+      })
+
+      const workspace = workspaceResponse.json() as { id: string }
+
+      const taskResponse = await app.inject({
+        method: 'POST',
+        url: '/api/tasks',
+        payload: {
+          workspaceId: workspace.id,
+          prompt: 'fix bug',
+        },
+      })
+
+      const task = taskResponse.json() as { id: string }
+
+      await app.inject({
+        method: 'POST',
+        url: `/api/tasks/${task.id}/prepare`,
+      })
+
+      await app.inject({
+        method: 'POST',
+        url: `/api/tasks/${task.id}/start`,
+      })
+
+      const eventsResponse = await app.inject({
+        method: 'GET',
+        url: `/api/tasks/${task.id}/events?once=1`,
+      })
+
+      expect(eventsResponse.statusCode).toBe(200)
+      expect(eventsResponse.body).toContain('event: task.status')
+      expect(eventsResponse.body).toContain('"status":"created"')
+      expect(eventsResponse.body).toContain('"status":"preparing"')
+      expect(eventsResponse.body).toContain('"status":"running"')
+    } finally {
+      await fixture.cleanup()
+      await app.close()
+    }
+  })
 })

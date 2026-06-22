@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { TaskStatusSchema } from './task'
 
 export const TaskEventTypeSchema = z.enum([
   'task.status',
@@ -14,6 +15,34 @@ export const TaskEventTypeSchema = z.enum([
 ])
 
 export type TaskEventType = z.infer<typeof TaskEventTypeSchema>
+
+export const TaskStatusEventPayloadSchema = z.object({
+  previousStatus: TaskStatusSchema.optional(),
+  status: TaskStatusSchema,
+  reason: z.string().optional(),
+})
+
+export type TaskStatusEventPayload = z.infer<
+  typeof TaskStatusEventPayloadSchema
+>
+
+export const AgentMessageEventPayloadSchema = z.object({
+  message: z.string(),
+  role: z.enum(['assistant', 'system']).default('assistant'),
+})
+
+export type AgentMessageEventPayload = z.infer<
+  typeof AgentMessageEventPayloadSchema
+>
+
+export const DiffUpdatedEventPayloadSchema = z.object({
+  changed: z.boolean(),
+  bytes: z.number().int().nonnegative(),
+})
+
+export type DiffUpdatedEventPayload = z.infer<
+  typeof DiffUpdatedEventPayloadSchema
+>
 
 export const TaskEventSchema = z.object({
   id: z.string().min(1),
