@@ -2,6 +2,7 @@ import { Command } from 'commander'
 import { chatCommand } from './commands/chat'
 import { configCommand } from './commands/config'
 import { runCommand } from './commands/run'
+import { runnerCommand } from './commands/runner'
 import { skillCommand } from './commands/skill'
 
 export function createCliProgram() {
@@ -24,6 +25,8 @@ export function createCliProgram() {
     .option('-w, --workspace <path>', 'Workspace directory', process.cwd())
     .option('-m, --model <name>', 'Model to use', 'openai/gpt-4.1')
     .action(runCommand)
+
+  program.addCommand(runnerCommand)
 
   program.command('skill').description('Manage skills').addCommand(skillCommand)
 

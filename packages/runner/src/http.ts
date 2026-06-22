@@ -1,0 +1,52 @@
+import type { ForgeAgentError } from '@forgeagent/core'
+import type { FastifyInstance } from 'fastify'
+
+export interface HttpErrorPayload {
+  error: {
+    code: string
+    message: string
+    details?: unknown
+  }
+}
+
+export function statusFromErrorCode(code: string): number {
+  switch (code) {
+    case 'WORKSPACE_NOT_FOUND':
+    case 'TASK_NOT_FOUND':
+    case 'APPROVAL_NOT_FOUND':
+      return 404
+
+    case 'INVALID_TASK_STATUS_TRANSITION':
+    case 'APPROVAL_ALREADY_RESOLVED':
+      return 409
+
+    case 'SENSITIVE_FILE_BLOCKED':
+    case 'IGNORED_PATH_BLOCKED':
+    case 'PATH_ESCAPE_DETECTED':
+      return 403
+
+    default:
+      return 500
+  }
+}
+
+export function registerErrorHandler(app: FastifyInstance): void {
+  app.setErrorHandler((error, _request, reply) => {
+    const fastifyError = error as Error & Partial<ForgeAgentError>
+    const code = fastifyError.code || 'UNKNOWN_ERROR'
+    const status = statusFromErrorCode(code)
+
+    const payload: HttpErrorPayload = {
+      error: {
+        code,
+        message: fastifyError.message,
+      },
+    }
+
+    if (fastifyError.details !== undefined) {
+      payload.error.details = fastifyError.details
+    }
+
+    reply.status(status).send(payload)
+  })
+}

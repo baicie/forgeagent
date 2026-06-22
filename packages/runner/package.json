@@ -1,40 +1,45 @@
 {
-  "name": "@forgeagent/cli",
+  "name": "@forgeagent/runner",
   "type": "module",
   "version": "0.1.0",
-  "description": "ForgeAgent OS CLI",
+  "description": "ForgeAgent Local Runner Server",
   "license": "MIT",
   "keywords": [
     "forgeagent",
     "agent",
-    "cli",
-    "ai",
+    "runner",
+    "local-runner",
     "agent-os"
   ],
-  "bin": {
-    "forgeagent": "./dist/index.js"
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
   },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "files": [
     "dist"
   ],
   "scripts": {
     "build": "vite build",
-    "dev": "tsx watch src/index.ts",
+    "dev": "vite build --watch",
     "clean": "rm -rf dist temp",
     "typecheck": "tsc --noEmit",
     "test": "vitest"
   },
   "dependencies": {
     "@forgeagent/core": "workspace:*",
-    "@forgeagent/runner": "workspace:*",
-    "commander": "^15.0.0",
-    "picocolors": "^1.1.1"
+    "fastify": "^5.6.2"
   },
   "devDependencies": {
     "@types/node": "^26.0.0",
-    "tsx": "^4.22.4",
     "typescript": "^6.0.3",
     "vite": "^8.0.16",
+    "vite-plugin-dts": "^5.0.2",
     "vitest": "^4.1.9"
   }
 }

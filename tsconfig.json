@@ -3,7 +3,9 @@
   "compilerOptions": {
     "paths": {
       "@forgeagent/core": ["./packages/core/src/index.ts"],
-      "@forgeagent/core/*": ["./packages/core/src/*"]
+      "@forgeagent/core/*": ["./packages/core/src/*"],
+      "@forgeagent/runner": ["./packages/runner/src/index.ts"],
+      "@forgeagent/runner/*": ["./packages/runner/src/*"]
     },
     "types": ["node", "vitest/globals"],
     "noEmit": true
