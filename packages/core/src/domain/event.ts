@@ -35,6 +35,44 @@ export type AgentMessageEventPayload = z.infer<
   typeof AgentMessageEventPayloadSchema
 >
 
+export const ToolStartedEventPayloadSchema = z
+  .object({
+    toolName: z.string().min(1),
+    args: z.unknown().optional(),
+  })
+  .passthrough()
+
+export const ToolOutputEventPayloadSchema = z
+  .object({
+    toolName: z.string().min(1).optional(),
+    output: z.unknown().optional(),
+    chunk: z.string().optional(),
+  })
+  .passthrough()
+
+export const ToolFinishedEventPayloadSchema = z
+  .object({
+    toolName: z.string().min(1),
+    result: z.unknown().optional(),
+    error: z.unknown().optional(),
+  })
+  .passthrough()
+
+export const ApprovalRequiredEventPayloadSchema = z
+  .object({
+    approvalId: z.string().min(1).optional(),
+    toolName: z.string().min(1).optional(),
+    args: z.unknown().optional(),
+  })
+  .passthrough()
+
+export const ApprovalResolvedEventPayloadSchema = z
+  .object({
+    approvalId: z.string().min(1).optional(),
+    status: z.enum(['approved', 'rejected']).optional(),
+  })
+  .passthrough()
+
 export const DiffUpdatedEventPayloadSchema = z.object({
   changed: z.boolean(),
   bytes: z.number().int().nonnegative(),
@@ -43,6 +81,18 @@ export const DiffUpdatedEventPayloadSchema = z.object({
 export type DiffUpdatedEventPayload = z.infer<
   typeof DiffUpdatedEventPayloadSchema
 >
+
+export const TaskCompletedEventPayloadSchema = z
+  .object({
+    output: z.unknown().optional(),
+  })
+  .passthrough()
+
+export const TaskFailedEventPayloadSchema = z
+  .object({
+    error: z.unknown(),
+  })
+  .passthrough()
 
 export const TaskEventSchema = z.object({
   id: z.string().min(1),
@@ -60,3 +110,51 @@ export const CreateTaskEventInputSchema = TaskEventSchema.omit({
 })
 
 export type CreateTaskEventInput = z.infer<typeof CreateTaskEventInputSchema>
+
+export function parseTaskEventPayload(
+  type: TaskEventType,
+  payload: unknown,
+): unknown {
+  switch (type) {
+    case 'task.status':
+      return TaskStatusEventPayloadSchema.parse(payload)
+
+    case 'agent.message':
+      return AgentMessageEventPayloadSchema.parse(payload)
+
+    case 'tool.started':
+      return ToolStartedEventPayloadSchema.parse(payload)
+
+    case 'tool.output':
+      return ToolOutputEventPayloadSchema.parse(payload)
+
+    case 'tool.finished':
+      return ToolFinishedEventPayloadSchema.parse(payload)
+
+    case 'approval.required':
+      return ApprovalRequiredEventPayloadSchema.parse(payload)
+
+    case 'approval.resolved':
+      return ApprovalResolvedEventPayloadSchema.parse(payload)
+
+    case 'diff.updated':
+      return DiffUpdatedEventPayloadSchema.parse(payload)
+
+    case 'task.completed':
+      return TaskCompletedEventPayloadSchema.parse(payload)
+
+    case 'task.failed':
+      return TaskFailedEventPayloadSchema.parse(payload)
+  }
+}
+
+export function parseCreateTaskEventInput(
+  input: CreateTaskEventInput,
+): CreateTaskEventInput {
+  const parsedInput = CreateTaskEventInputSchema.parse(input)
+
+  return {
+    ...parsedInput,
+    payload: parseTaskEventPayload(parsedInput.type, parsedInput.payload),
+  }
+}

@@ -49,11 +49,6 @@ export function registerEventRoutes(
   }>('/api/tasks/:id/events', async (request, reply) => {
     context.taskService.get(request.params.id)
 
-    const events = context.eventService.listTaskEvents(request.params.id, {
-      afterId: request.query.afterId,
-      limit: parseLimit(request.query.limit),
-    })
-
     reply.hijack()
     reply.raw.writeHead(200, {
       'Content-Type': 'text/event-stream; charset=utf-8',
@@ -62,21 +57,58 @@ export function registerEventRoutes(
       Connection: 'keep-alive',
     })
 
-    for (const event of events) {
-      writeSse(reply.raw, event.type, event)
-    }
-
     if (request.query.once === '1') {
+      const events = context.eventService.listTaskEvents(request.params.id, {
+        afterId: request.query.afterId,
+        limit: parseLimit(request.query.limit),
+      })
+
+      for (const event of events) {
+        writeSse(reply.raw, event.type, event)
+      }
+
       reply.raw.end()
       return
     }
 
+    let replaying = true
+    const bufferedLiveEvents: TaskEvent[] = []
+    const replayedEventIds = new Set<string>()
+
     const unsubscribe = context.eventService.subscribe(
       request.params.id,
       (event: TaskEvent) => {
+        if (replaying) {
+          bufferedLiveEvents.push(event)
+          return
+        }
+
         writeSse(reply.raw, event.type, event)
       },
     )
+
+    try {
+      const events = context.eventService.listTaskEvents(request.params.id, {
+        afterId: request.query.afterId,
+        limit: parseLimit(request.query.limit),
+      })
+
+      for (const event of events) {
+        replayedEventIds.add(event.id)
+        writeSse(reply.raw, event.type, event)
+      }
+
+      replaying = false
+
+      for (const event of bufferedLiveEvents) {
+        if (!replayedEventIds.has(event.id)) {
+          writeSse(reply.raw, event.type, event)
+        }
+      }
+    } catch (error) {
+      unsubscribe()
+      throw error
+    }
 
     const heartbeat = setInterval(() => {
       if (!reply.raw.destroyed && !reply.raw.writableEnded) {

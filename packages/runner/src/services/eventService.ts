@@ -1,6 +1,6 @@
 import {
-  CreateTaskEventInputSchema,
   TaskEventSchema,
+  parseCreateTaskEventInput,
 } from '@forgeagent/core'
 import type { CreateTaskEventInput, TaskEvent } from '@forgeagent/core'
 import { randomUUID } from 'node:crypto'
@@ -48,7 +48,7 @@ export class EventService {
   }
 
   async append(input: CreateTaskEventInput): Promise<TaskEvent> {
-    const parsedInput = CreateTaskEventInputSchema.parse(input)
+    const parsedInput = parseCreateTaskEventInput(input)
 
     const event = TaskEventSchema.parse({
       id: `evt_${randomUUID()}`,

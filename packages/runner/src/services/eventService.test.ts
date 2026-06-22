@@ -110,4 +110,50 @@ describe('eventService', () => {
       }),
     ).rejects.toThrow()
   })
+
+  it('rejects invalid task.status payload', async () => {
+    const db = createInMemoryRunnerDb()
+    const service = new EventService(db)
+
+    await expect(
+      service.append({
+        taskId: 'task_1',
+        type: 'task.status',
+        payload: {
+          status: 'not-a-status',
+        },
+      }),
+    ).rejects.toThrow()
+  })
+
+  it('rejects invalid agent.message payload', async () => {
+    const db = createInMemoryRunnerDb()
+    const service = new EventService(db)
+
+    await expect(
+      service.append({
+        taskId: 'task_1',
+        type: 'agent.message',
+        payload: {
+          role: 'assistant',
+        },
+      }),
+    ).rejects.toThrow()
+  })
+
+  it('rejects invalid diff.updated payload', async () => {
+    const db = createInMemoryRunnerDb()
+    const service = new EventService(db)
+
+    await expect(
+      service.append({
+        taskId: 'task_1',
+        type: 'diff.updated',
+        payload: {
+          changed: true,
+          bytes: -1,
+        },
+      }),
+    ).rejects.toThrow()
+  })
 })

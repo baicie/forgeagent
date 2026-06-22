@@ -81,6 +81,14 @@ export function mapAgentEventToTaskEvents(
       return [
         {
           taskId,
+          type: 'task.status',
+          payload: {
+            status: 'completed',
+            reason: 'Agent run finished',
+          },
+        },
+        {
+          taskId,
           type: 'task.completed',
           payload: {
             output: event.output,
@@ -90,6 +98,14 @@ export function mapAgentEventToTaskEvents(
 
     case 'run.failed':
       return [
+        {
+          taskId,
+          type: 'task.status',
+          payload: {
+            status: 'failed',
+            reason: 'Agent run failed',
+          },
+        },
         {
           taskId,
           type: 'task.failed',

@@ -60,6 +60,14 @@ describe('mapAgentEventToTaskEvents', () => {
     expect(mapAgentEventToTaskEvents('task_1', event)).toEqual([
       {
         taskId: 'task_1',
+        type: 'task.status',
+        payload: {
+          status: 'completed',
+          reason: 'Agent run finished',
+        },
+      },
+      {
+        taskId: 'task_1',
         type: 'task.completed',
         payload: {
           output: 'done',
@@ -76,6 +84,14 @@ describe('mapAgentEventToTaskEvents', () => {
     }
 
     expect(mapAgentEventToTaskEvents('task_1', event)).toEqual([
+      {
+        taskId: 'task_1',
+        type: 'task.status',
+        payload: {
+          status: 'failed',
+          reason: 'Agent run failed',
+        },
+      },
       {
         taskId: 'task_1',
         type: 'task.failed',
