@@ -33,6 +33,11 @@ describe('runner api client', () => {
       'fetch',
       vi.fn(async () => ({
         ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers({
+          'content-type': 'application/json',
+        }),
         json: async () => ({
           id: 'ws_1',
           name: 'repo',
@@ -73,6 +78,7 @@ describe('runner api client', () => {
         ok: false,
         status: 409,
         statusText: 'Conflict',
+        headers: new Headers(),
         json: async () => ({
           error: {
             code: 'DIFF_EMPTY',
@@ -110,5 +116,45 @@ describe('runner api client', () => {
       code: 'NETWORK_ERROR',
       status: 0,
     })
+  })
+
+  it('wraps non-json success response as RUNNER_RESPONSE_INVALID', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers({
+          'content-type': 'text/plain',
+        }),
+        text: async () => 'ok',
+      })),
+    )
+
+    const client = new RunnerApiClient()
+
+    await expect(client.listTasks()).rejects.toMatchObject({
+      name: 'RunnerApiError',
+      code: 'RUNNER_RESPONSE_INVALID',
+      status: 200,
+    })
+  })
+
+  it('allows empty 204 response', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        status: 204,
+        statusText: 'No Content',
+        headers: new Headers(),
+        text: async () => '',
+      })),
+    )
+
+    const client = new RunnerApiClient()
+
+    await expect(client.health()).resolves.toBeUndefined()
   })
 })

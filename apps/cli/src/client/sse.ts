@@ -77,20 +77,45 @@ export function parseTaskEventFromSseFrame(
   return JSON.parse(message.data) as TaskEvent
 }
 
+function isAbortError(error: unknown): boolean {
+  return (
+    error !== null &&
+    typeof error === 'object' &&
+    'name' in error &&
+    String((error as { name: unknown }).name) === 'AbortError'
+  )
+}
+
 export async function watchTaskEvents(
   input: WatchTaskEventsInput,
 ): Promise<void> {
-  const response = await fetch(
-    createTaskEventsUrl({
-      baseUrl: input.baseUrl,
-      taskId: input.taskId,
-      afterId: input.afterId,
-    }),
-    {
-      method: 'GET',
-      signal: input.signal,
-    },
-  )
+  let response: Response
+
+  try {
+    response = await fetch(
+      createTaskEventsUrl({
+        baseUrl: input.baseUrl,
+        taskId: input.taskId,
+        afterId: input.afterId,
+      }),
+      {
+        method: 'GET',
+        signal: input.signal,
+      },
+    )
+  } catch (error) {
+    if (input.signal?.aborted || isAbortError(error)) {
+      return
+    }
+
+    throw createForgeAgentError(
+      'RUNNER_REQUEST_FAILED',
+      'Failed to connect task event stream',
+      {
+        cause: error instanceof Error ? error.message : String(error),
+      },
+    )
+  }
 
   if (!response.ok || !response.body) {
     throw createForgeAgentError(
@@ -107,26 +132,46 @@ export async function watchTaskEvents(
   const decoder = new TextDecoder()
   let buffer = ''
 
-  while (!input.signal?.aborted) {
-    const result = await reader.read()
+  try {
+    while (!input.signal?.aborted) {
+      const result = await reader.read()
 
-    if (result.done) {
-      break
+      if (result.done) {
+        break
+      }
+
+      buffer += decoder.decode(result.value, {
+        stream: true,
+      })
+
+      const frames = buffer.split(/\r?\n\r?\n/)
+      buffer = frames.pop() || ''
+
+      for (const frame of frames) {
+        const event = parseTaskEventFromSseFrame(frame)
+
+        if (event) {
+          input.onEvent(event)
+        }
+      }
+    }
+  } catch (error) {
+    if (input.signal?.aborted || isAbortError(error)) {
+      return
     }
 
-    buffer += decoder.decode(result.value, {
-      stream: true,
-    })
-
-    const frames = buffer.split(/\r?\n\r?\n/)
-    buffer = frames.pop() || ''
-
-    for (const frame of frames) {
-      const event = parseTaskEventFromSseFrame(frame)
-
-      if (event) {
-        input.onEvent(event)
-      }
+    throw createForgeAgentError(
+      'RUNNER_REQUEST_FAILED',
+      'Task event stream failed',
+      {
+        cause: error instanceof Error ? error.message : String(error),
+      },
+    )
+  } finally {
+    try {
+      reader.releaseLock()
+    } catch {
+      // Best-effort cleanup.
     }
   }
 

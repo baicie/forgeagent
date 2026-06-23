@@ -59,6 +59,54 @@ async function readErrorPayload(response: Response): Promise<ApiErrorPayload> {
   }
 }
 
+function isJsonResponse(response: Response): boolean {
+  return (
+    response.headers
+      .get('content-type')
+      ?.toLowerCase()
+      .includes('application/json') ?? false
+  )
+}
+
+async function readSuccessPayload<T>(response: Response): Promise<T> {
+  if (response.status === 204) {
+    return undefined as T
+  }
+
+  if (!isJsonResponse(response)) {
+    const text = await response.text()
+
+    if (!text.trim()) {
+      return undefined as T
+    }
+
+    throw new RunnerApiError(response.status, {
+      error: {
+        code: 'RUNNER_RESPONSE_INVALID',
+        message: 'Runner response is not JSON',
+        details: {
+          contentType: response.headers.get('content-type'),
+          body: text.slice(0, 2000),
+        },
+      },
+    })
+  }
+
+  try {
+    return (await response.json()) as T
+  } catch (error) {
+    throw new RunnerApiError(response.status, {
+      error: {
+        code: 'RUNNER_RESPONSE_INVALID',
+        message: 'Runner response JSON parse failed',
+        details: {
+          cause: error instanceof Error ? error.message : String(error),
+        },
+      },
+    })
+  }
+}
+
 export class RunnerApiClient {
   readonly baseUrl: string
 
@@ -173,7 +221,7 @@ export class RunnerApiClient {
       )
     }
 
-    return (await response.json()) as T
+    return readSuccessPayload<T>(response)
   }
 }
 

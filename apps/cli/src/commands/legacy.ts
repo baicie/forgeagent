@@ -34,15 +34,8 @@ export function createLegacyCommand(): Command {
       },
     )
 
-  command
-    .command('skill')
-    .description('Legacy skill manager')
-    .addCommand(skillCommand)
-
-  command
-    .command('config')
-    .description('Legacy configuration manager')
-    .addCommand(configCommand)
+  command.addCommand(skillCommand)
+  command.addCommand(configCommand)
 
   return command
 }

@@ -87,4 +87,58 @@ data: {"id":"evt_1","taskId":"task_1","type":"agent.message","payload":{"message
       }),
     ])
   })
+
+  it('returns cleanly when aborted before fetch completes', async () => {
+    const controller = new AbortController()
+    controller.abort()
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw Object.assign(new Error('aborted'), {
+          name: 'AbortError',
+        })
+      }),
+    )
+
+    await expect(
+      watchTaskEvents({
+        baseUrl: 'http://127.0.0.1:17890',
+        taskId: 'task_1',
+        signal: controller.signal,
+        onEvent: vi.fn(),
+      }),
+    ).resolves.toBeUndefined()
+  })
+
+  it('wraps stream read failure as RUNNER_REQUEST_FAILED', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        body: {
+          getReader() {
+            return {
+              async read() {
+                throw new Error('stream broken')
+              },
+              releaseLock() {},
+            }
+          },
+        },
+      })),
+    )
+
+    await expect(
+      watchTaskEvents({
+        baseUrl: 'http://127.0.0.1:17890',
+        taskId: 'task_1',
+        onEvent: vi.fn(),
+      }),
+    ).rejects.toMatchObject({
+      code: 'RUNNER_REQUEST_FAILED',
+    })
+  })
 })
