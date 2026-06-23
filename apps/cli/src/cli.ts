@@ -1,3 +1,4 @@
+import { configCommand } from './commands/config'
 import { Command } from 'commander'
 import type { RunnerApiClientFactory } from './client/runnerClient'
 import { legacyCommand } from './commands/legacy'
@@ -21,6 +22,7 @@ export function createCliProgram(options: CreateCliProgramOptions = {}) {
   program.addCommand(runnerCommand)
   program.addCommand(createWorkspaceCommand(options.clientFactory))
   program.addCommand(createTaskCommand(options.clientFactory))
+  program.addCommand(configCommand)
   program.addCommand(legacyCommand)
 
   return program
