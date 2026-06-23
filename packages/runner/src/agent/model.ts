@@ -79,18 +79,32 @@ export class OpenAICompatibleModelGateway {
       headers.Authorization = `Bearer ${this.config.apiKey}`
     }
 
-    const response = await this.fetchImpl(
-      joinUrl(this.config.baseUrl, '/chat/completions'),
-      {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
+    let response: Awaited<ReturnType<FetchLike>>
+
+    try {
+      response = await this.fetchImpl(
+        joinUrl(this.config.baseUrl, '/chat/completions'),
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            model: this.config.model,
+            messages: input.messages,
+            temperature: input.temperature ?? this.config.temperature ?? 0,
+          }),
+        },
+      )
+    } catch (error) {
+      throw createForgeAgentError(
+        'MODEL_REQUEST_FAILED',
+        'Model request failed before receiving response',
+        {
+          baseUrl: this.config.baseUrl,
           model: this.config.model,
-          messages: input.messages,
-          temperature: input.temperature ?? this.config.temperature ?? 0,
-        }),
-      },
-    )
+          cause: error instanceof Error ? error.message : String(error),
+        },
+      )
+    }
 
     if (!response.ok) {
       const body = await response.text()
@@ -106,7 +120,20 @@ export class OpenAICompatibleModelGateway {
       )
     }
 
-    const raw = (await response.json()) as OpenAICompatibleChatResponse
+    let raw: OpenAICompatibleChatResponse
+
+    try {
+      raw = (await response.json()) as OpenAICompatibleChatResponse
+    } catch (error) {
+      throw createForgeAgentError(
+        'MODEL_RESPONSE_INVALID',
+        'Model response is not valid JSON',
+        {
+          cause: error instanceof Error ? error.message : String(error),
+        },
+      )
+    }
+
     const content = raw.choices?.[0]?.message?.content
 
     if (!content) {

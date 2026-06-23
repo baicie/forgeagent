@@ -1,5 +1,8 @@
 import type { Task } from '@forgeagent/core'
-import { createForgeAgentError } from '@forgeagent/core'
+import {
+  canTransitionTaskStatus,
+  createForgeAgentError,
+} from '@forgeagent/core'
 import type { RunnerContext } from '../context'
 import {
   applyPatchTool,
@@ -18,6 +21,7 @@ import type {
 import {
   createJsonRetryPrompt,
   createSystemPrompt,
+  createTaskEventHistoryPrompt,
   createTaskPrompt,
   createToolResultPrompt,
 } from './prompts'
@@ -28,11 +32,13 @@ import { createAgentRunContext } from './context'
 export const DEFAULT_MAX_AGENT_STEPS = 30
 export const DEFAULT_MAX_TOOL_OUTPUT_CHARS = 20_000
 export const DEFAULT_JSON_RETRY_LIMIT = 2
+export const DEFAULT_MAX_EVENT_HISTORY_CHARS = 30_000
 
 export interface AgentLoopOptions {
   maxSteps?: number
   maxToolOutputChars?: number
   jsonRetryLimit?: number
+  maxEventHistoryChars?: number
 }
 
 export interface AgentLoopResult {
@@ -49,11 +55,27 @@ export class ForgeAgentLoop {
   ) {}
 
   async run(taskId: string): Promise<AgentLoopResult> {
+    try {
+      return await this.runUnsafe(taskId)
+    } catch (error) {
+      const failed = await this.failTaskIfPossible(taskId, error)
+
+      if (failed) {
+        return failed
+      }
+
+      throw error
+    }
+  }
+
+  private async runUnsafe(taskId: string): Promise<AgentLoopResult> {
     const maxSteps = this.options.maxSteps ?? DEFAULT_MAX_AGENT_STEPS
     const maxToolOutputChars =
       this.options.maxToolOutputChars ?? DEFAULT_MAX_TOOL_OUTPUT_CHARS
     const jsonRetryLimit =
       this.options.jsonRetryLimit ?? DEFAULT_JSON_RETRY_LIMIT
+    const maxEventHistoryChars =
+      this.options.maxEventHistoryChars ?? DEFAULT_MAX_EVENT_HISTORY_CHARS
 
     const runContext = createAgentRunContext(this.runner, taskId)
 
@@ -74,6 +96,18 @@ export class ForgeAgentLoop {
         }),
       },
     ]
+
+    const historyEvents = this.runner.eventService.listTaskEvents(taskId)
+
+    if (historyEvents.length > 0) {
+      messages.push({
+        role: 'user',
+        content: createTaskEventHistoryPrompt({
+          events: historyEvents,
+          maxChars: maxEventHistoryChars,
+        }),
+      })
+    }
 
     for (let step = 1; step <= maxSteps; step += 1) {
       await this.runner.eventService.append({
@@ -225,8 +259,9 @@ export class ForgeAgentLoop {
     taskId: string,
   ): Promise<AgentStepResponse> {
     let lastError: unknown
+    const maxAttempts = retryLimit + 1
 
-    for (let attempt = 0; attempt <= retryLimit; attempt += 1) {
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       const result = await this.model.generate({
         messages,
       } as ModelGenerateInput)
@@ -236,12 +271,16 @@ export class ForgeAgentLoop {
       } catch (error) {
         lastError = error
 
+        if (attempt >= maxAttempts) {
+          break
+        }
+
         await this.runner.eventService.append({
           taskId,
           type: 'agent.message',
           payload: {
             role: 'system',
-            message: `Model JSON parse failed, retry ${attempt + 1}/${retryLimit}`,
+            message: `Model JSON parse failed, retry ${attempt}/${retryLimit}`,
           },
         })
 
@@ -352,6 +391,37 @@ export class ForgeAgentLoop {
     return {
       value: `${serialized.slice(0, maxChars)}\n...<truncated>`,
       truncated: true,
+    }
+  }
+
+  private async failTaskIfPossible(
+    taskId: string,
+    error: unknown,
+  ): Promise<AgentLoopResult | undefined> {
+    const task = this.runner.taskService.get(taskId)
+
+    if (!canTransitionTaskStatus(task.status, 'failed')) {
+      return undefined
+    }
+
+    const payload = {
+      message: error instanceof Error ? error.message : String(error),
+      code:
+        typeof error === 'object' && error !== null && 'code' in error
+          ? String((error as { code: unknown }).code)
+          : 'UNKNOWN_ERROR',
+      details:
+        typeof error === 'object' && error !== null && 'details' in error
+          ? (error as { details: unknown }).details
+          : undefined,
+    }
+
+    await this.runner.taskService.fail(taskId, payload)
+
+    return {
+      task: this.runner.taskService.get(taskId),
+      status: 'failed',
+      finalMessage: payload.message,
     }
   }
 }

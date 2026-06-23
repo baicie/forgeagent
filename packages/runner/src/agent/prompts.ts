@@ -1,3 +1,5 @@
+import type { TaskEvent } from '@forgeagent/core'
+
 export function createSystemPrompt(): string {
   return `你是 ForgeAgent，一个本地优先、私有优先、审批优先的 Coding Agent。
 
@@ -91,6 +93,41 @@ export function createTaskPrompt(input: {
 - baseCommit: ${input.baseCommit}
 
 请开始分析并执行。`
+}
+
+export function createTaskEventHistoryPrompt(input: {
+  events: TaskEvent[]
+  maxChars: number
+}): string {
+  const usefulEvents = input.events
+    .filter(event =>
+      [
+        'agent.message',
+        'tool.started',
+        'tool.output',
+        'tool.finished',
+        'approval.required',
+        'approval.resolved',
+        'diff.updated',
+        'task.status',
+      ].includes(event.type),
+    )
+    .map(event => ({
+      type: event.type,
+      payload: event.payload,
+      createdAt: event.createdAt,
+    }))
+
+  const serialized = JSON.stringify(usefulEvents, null, 2)
+  const truncated =
+    serialized.length > input.maxChars
+      ? `${serialized.slice(-input.maxChars)}\n...<history truncated from head>`
+      : serialized
+
+  return `以下是这个 task 已经发生过的事件历史。你需要基于这些历史继续执行，不要重复已经完成的工具调用，尤其是已经审批并执行完成的 run_command。
+
+事件历史：
+${truncated}`
 }
 
 export function createJsonRetryPrompt(errorMessage: string): string {

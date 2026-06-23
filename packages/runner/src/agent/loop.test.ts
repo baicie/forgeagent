@@ -401,4 +401,104 @@ describe('ForgeAgentLoop', () => {
     expect(result.status).toBe('waiting_approval')
     expect(taskService.get(task.id).status).toBe('waiting_approval')
   })
+
+  it('marks task as failed when JSON parsing still fails after retries', async () => {
+    const { loop, taskService } = createLoopFixture(['not-json'], {
+      jsonRetryLimit: 1,
+    })
+
+    const task = await taskService.create({
+      workspaceId: 'ws_1',
+      prompt: 'bad json',
+    })
+
+    const result = await loop.run(task.id)
+
+    expect(result.status).toBe('failed')
+    expect(taskService.get(task.id).status).toBe('failed')
+    expect(result.finalMessage).toContain('Invalid JSON')
+  })
+
+  it('marks task as failed when tool execution throws', async () => {
+    const { db, loop, taskService } = createLoopFixture(
+      [
+        JSON.stringify({
+          message: '读一个不存在文件',
+          action: {
+            name: 'read_file',
+            args: {
+              path: 'missing.ts',
+            },
+          },
+        }),
+      ],
+      {},
+      async () => {
+        throw new Error('tool failed')
+      },
+    )
+
+    const task = await taskService.create({
+      workspaceId: 'ws_1',
+      prompt: 'tool fail',
+    })
+
+    const result = await loop.run(task.id)
+
+    expect(result.status).toBe('failed')
+    expect(taskService.get(task.id).status).toBe('failed')
+
+    expect(db.state.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'tool.finished',
+          payload: expect.objectContaining({
+            error: 'tool failed',
+          }),
+        }),
+        expect.objectContaining({
+          type: 'task.failed',
+        }),
+      ]),
+    )
+  })
+
+  it('includes task event history when resuming after approval', async () => {
+    const { db, loop, taskService } = createLoopFixture([
+      JSON.stringify({
+        message: '继续完成',
+        final: true,
+        summary: {
+          changes: ['基于历史事件继续完成'],
+          tests: ['看到历史中的测试输出'],
+          risks: [],
+          nextSteps: [],
+        },
+      }),
+    ])
+
+    const task = await taskService.create({
+      workspaceId: 'ws_1',
+      prompt: 'resume',
+    })
+
+    await db.state.events.push({
+      id: 'evt_history_1',
+      taskId: task.id,
+      type: 'tool.finished',
+      payload: {
+        toolName: 'run_command',
+        ok: true,
+        result: {
+          stdout: 'test passed',
+        },
+      },
+      createdAt: '2026-06-22T00:00:00.000Z',
+    })
+
+    const result = await loop.run(task.id)
+
+    expect(result.status).toBe('completed')
+    expect(result.finalMessage).toContain('看到历史中的测试输出')
+  })
 })

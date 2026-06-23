@@ -106,4 +106,64 @@ describe('OpenAICompatibleModelGateway', () => {
       process.env.FORGEAGENT_MODEL_NAME = originalModel
     }
   })
+
+  it('wraps fetch network errors as MODEL_REQUEST_FAILED', async () => {
+    const fetchImpl = vi.fn(async () => {
+      throw new Error('network down')
+    })
+
+    const gateway = new OpenAICompatibleModelGateway(
+      {
+        baseUrl: 'http://localhost:11434/v1',
+        model: 'qwen',
+      },
+      fetchImpl,
+    )
+
+    await expect(
+      gateway.generate({
+        messages: [
+          {
+            role: 'user',
+            content: 'hello',
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({
+      code: 'MODEL_REQUEST_FAILED',
+    })
+  })
+
+  it('wraps invalid response JSON as MODEL_RESPONSE_INVALID', async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      text: async () => 'not-json',
+      json: async () => {
+        throw new Error('invalid json')
+      },
+    }))
+
+    const gateway = new OpenAICompatibleModelGateway(
+      {
+        baseUrl: 'http://localhost:11434/v1',
+        model: 'qwen',
+      },
+      fetchImpl,
+    )
+
+    await expect(
+      gateway.generate({
+        messages: [
+          {
+            role: 'user',
+            content: 'hello',
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({
+      code: 'MODEL_RESPONSE_INVALID',
+    })
+  })
 })
