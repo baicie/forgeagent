@@ -1,0 +1,275 @@
+:root {
+  color: #111;
+  background: #f6f6f6;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
+  background: #111;
+  color: #fff;
+  padding: 8px 12px;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+input,
+textarea,
+select {
+  width: 100%;
+  border: 1px solid #d4d4d4;
+  border-radius: 8px;
+  background: #fff;
+  padding: 8px 10px;
+}
+
+label {
+  display: grid;
+  gap: 6px;
+  color: #333;
+  font-size: 14px;
+}
+
+pre {
+  overflow: auto;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.app-shell {
+  min-height: 100vh;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 1px solid #ddd;
+  background: #fff;
+  padding: 14px 20px;
+}
+
+.brand {
+  border: 0;
+  background: transparent;
+  color: #111;
+  padding: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.muted {
+  color: #777;
+  font-size: 13px;
+}
+
+.error {
+  border: 1px solid #f2b8b5;
+  border-radius: 8px;
+  background: #fff0f0;
+  color: #9f1d1d;
+  padding: 10px;
+}
+
+.page-grid,
+.task-layout {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  padding: 20px;
+}
+
+.panel {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  border: 1px solid #ddd;
+  border-radius: 14px;
+  background: #fff;
+  padding: 16px;
+}
+
+.panel.wide {
+  grid-column: 1 / -1;
+}
+
+.panel-header,
+.task-header,
+.task-actions,
+.approval-header,
+.approval-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.panel-header,
+.task-header {
+  justify-content: space-between;
+}
+
+.task-page {
+  padding-bottom: 24px;
+}
+
+.task-header {
+  border-bottom: 1px solid #ddd;
+  background: #fff;
+  padding: 18px 20px;
+}
+
+.task-actions {
+  flex-wrap: wrap;
+  padding: 16px 20px 0;
+}
+
+.task-actions input {
+  width: min(360px, 100%);
+}
+
+.task-list {
+  display: grid;
+  gap: 8px;
+}
+
+.task-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  border-color: #eee;
+  background: #fafafa;
+  color: #111;
+  text-align: left;
+}
+
+.task-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: #eee;
+  padding: 3px 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.status-running,
+.status-preparing {
+  background: #e7f0ff;
+  color: #084298;
+}
+
+.status-waiting_approval {
+  background: #fff3cd;
+  color: #664d03;
+}
+
+.status-completed,
+.status-applied,
+.status-committed {
+  background: #d1e7dd;
+  color: #0f5132;
+}
+
+.status-failed,
+.status-cancelled,
+.status-discarded {
+  background: #f8d7da;
+  color: #842029;
+}
+
+.timeline,
+.tool-list,
+.approval-list {
+  display: grid;
+  gap: 10px;
+  max-height: 560px;
+  overflow: auto;
+}
+
+.event,
+.tool-event,
+.approval-card {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #eee;
+  border-radius: 10px;
+  background: #fafafa;
+  padding: 10px;
+}
+
+.event-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: #555;
+  font-size: 12px;
+}
+
+.approval-card.risk-dangerous {
+  border-color: #dc3545;
+  background: #fff5f5;
+}
+
+.approval-card.risk-high {
+  border-color: #fd7e14;
+  background: #fff7ed;
+}
+
+.approval-card.risk-medium {
+  border-color: #ffc107;
+  background: #fffbea;
+}
+
+.diff-viewer pre {
+  max-height: 640px;
+  border-radius: 10px;
+  background: #111;
+  color: #f8f8f2;
+  padding: 14px;
+}
+
+@media (max-width: 960px) {
+  .page-grid,
+  .task-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .task-row {
+    grid-template-columns: 1fr;
+  }
+}

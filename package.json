@@ -24,7 +24,9 @@
     "postinstall": "simple-git-hooks",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
-    "docs:preview": "vitepress preview docs"
+    "docs:preview": "vitepress preview docs",
+    "console:dev": "pnpm --filter @forgeagent/console dev",
+    "console:build": "pnpm --filter @forgeagent/console build"
   },
   "devDependencies": {
     "@antfu/eslint-config": "^9.0.0",

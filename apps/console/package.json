@@ -1,0 +1,31 @@
+{
+  "name": "@forgeagent/console",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ForgeAgent Web Console Lite",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 17891",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 17891",
+    "clean": "rm -rf dist coverage *.tsbuildinfo",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "6.0.0",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "jsdom": "^27.3.0",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vitest": "^4.1.9"
+  }
+}
