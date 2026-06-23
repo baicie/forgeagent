@@ -32,6 +32,7 @@ export default defineConfig({
     minify: false,
     rollupOptions: {
       external: [
+        'node:child_process',
         'node:crypto',
         'node:events',
         'node:fs',

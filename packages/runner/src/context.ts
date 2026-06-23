@@ -5,6 +5,9 @@ import { GitClient } from './git/gitClient'
 import { GitPatchService } from './git/patch'
 import { GitRepositoryService } from './git/repository'
 import { GitWorktreeService } from './git/worktree'
+import { ApprovalGate } from './shell/approvalGate'
+import { CommandPolicy } from './shell/commandPolicy'
+import { ShellExecutor } from './shell/shellExecutor'
 import { ApprovalService } from './services/approvalService'
 import { AuditService } from './services/auditService'
 import { EventService } from './services/eventService'
@@ -19,6 +22,9 @@ export interface RunnerContext {
   gitWorktreeService: GitWorktreeService
   gitDiffService: GitDiffService
   gitPatchService: GitPatchService
+  shellExecutor: ShellExecutor
+  commandPolicy: CommandPolicy
+  approvalGate: ApprovalGate
   workspaceService: WorkspaceService
   taskService: TaskService
   eventService: EventService
@@ -36,6 +42,9 @@ export function createRunnerContext(
   const gitDiffService = new GitDiffService(gitClient)
   const gitPatchService = new GitPatchService(gitClient, gitDiffService)
 
+  const shellExecutor = new ShellExecutor()
+  const commandPolicy = new CommandPolicy()
+
   const eventService = new EventService(db)
   const auditService = new AuditService(db)
   const workspaceService = new WorkspaceService(db, gitRepositoryService)
@@ -50,6 +59,14 @@ export function createRunnerContext(
     auditService,
   )
   const approvalService = new ApprovalService(db, eventService, auditService)
+  const approvalGate = new ApprovalGate({
+    approvalService,
+    taskService,
+    eventService,
+    auditService,
+    shellExecutor,
+    commandPolicy,
+  })
 
   return {
     config,
@@ -59,6 +76,9 @@ export function createRunnerContext(
     gitWorktreeService,
     gitDiffService,
     gitPatchService,
+    shellExecutor,
+    commandPolicy,
+    approvalGate,
     workspaceService,
     taskService,
     eventService,
