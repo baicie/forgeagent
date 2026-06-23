@@ -1,5 +1,10 @@
 import type { RunnerConfig } from './config'
 import type { RunnerDb } from './db'
+import { ForgeAgentLoop } from './agent/loop'
+import {
+  OpenAICompatibleModelGateway,
+  loadModelGatewayConfigFromEnv,
+} from './agent/model'
 import { GitDiffService } from './git/diff'
 import { GitClient } from './git/gitClient'
 import { GitPatchService } from './git/patch'
@@ -17,6 +22,8 @@ import { WorkspaceService } from './services/workspaceService'
 export interface RunnerContext {
   config: RunnerConfig
   db: RunnerDb
+  modelGateway: OpenAICompatibleModelGateway
+  agentLoop: ForgeAgentLoop
   gitClient: GitClient
   gitRepositoryService: GitRepositoryService
   gitWorktreeService: GitWorktreeService
@@ -68,9 +75,15 @@ export function createRunnerContext(
     commandPolicy,
   })
 
-  return {
+  const modelGateway = new OpenAICompatibleModelGateway(
+    loadModelGatewayConfigFromEnv(),
+  )
+
+  const context = {
     config,
     db,
+    modelGateway,
+    agentLoop: undefined as unknown as ForgeAgentLoop,
     gitClient,
     gitRepositoryService,
     gitWorktreeService,
@@ -85,4 +98,8 @@ export function createRunnerContext(
     approvalService,
     auditService,
   }
+
+  context.agentLoop = new ForgeAgentLoop(context, modelGateway)
+
+  return context
 }

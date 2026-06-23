@@ -17,7 +17,7 @@ export function registerTaskRoutes(
     context.taskService.get(request.params.id),
   )
 
-  app.post('/api/tasks', async (request, reply) => {
+  app.post('/api/tasks', async (request: any, reply) => {
     const input = parseBody(CreateTaskInputSchema, request.body)
     const task = await context.taskService.create(input)
 
@@ -26,31 +26,37 @@ export function registerTaskRoutes(
 
   app.post<{
     Params: { id: string }
-  }>('/api/tasks/:id/prepare', async request =>
+  }>('/api/tasks/:id/run', async (request: any) =>
+    context.agentLoop.run(request.params.id),
+  )
+
+  app.post<{
+    Params: { id: string }
+  }>('/api/tasks/:id/prepare', async (request: any) =>
     context.taskService.prepare(request.params.id),
   )
 
   app.post<{
     Params: { id: string }
-  }>('/api/tasks/:id/start', async request =>
+  }>('/api/tasks/:id/start', async (request: any) =>
     context.taskService.start(request.params.id),
   )
 
   app.post<{
     Params: { id: string }
-  }>('/api/tasks/:id/wait-approval', async request =>
+  }>('/api/tasks/:id/wait-approval', async (request: any) =>
     context.taskService.waitForApproval(request.params.id),
   )
 
   app.post<{
     Params: { id: string }
-  }>('/api/tasks/:id/complete', async request =>
+  }>('/api/tasks/:id/complete', async (request: any) =>
     context.taskService.complete(request.params.id),
   )
 
   app.post<{
     Params: { id: string }
-  }>('/api/tasks/:id/fail', async request =>
+  }>('/api/tasks/:id/fail', async (request: any) =>
     context.taskService.fail(request.params.id, {
       message: 'Task failed',
     }),
