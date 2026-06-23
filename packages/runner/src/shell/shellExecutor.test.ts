@@ -46,4 +46,18 @@ describe('shellExecutor', () => {
     expect(result.ok).toBe(false)
     expect(result.timedOut).toBe(true)
   }, 20000)
+
+  it('returns ok=false when cwd does not exist instead of throwing', async () => {
+    const executor = new ShellExecutor()
+
+    const result = await executor.execute({
+      command: `node -e "console.log('should-not-run')"`,
+      cwd: '/path/that/does/not/exist',
+      timeoutMs: 10_000,
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.exitCode).toBeNull()
+    expect(result.error).toBeTruthy()
+  }, 20000)
 })

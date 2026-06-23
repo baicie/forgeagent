@@ -1,4 +1,9 @@
-import type { Approval, CreateApprovalInput } from '@forgeagent/core'
+import type {
+  Approval,
+  AuditLog,
+  CreateApprovalInput,
+  TaskEvent,
+} from '@forgeagent/core'
 import { createForgeAgentError, isApprovalResolved } from '@forgeagent/core'
 import { randomUUID } from 'node:crypto'
 import type { RunnerDb } from '../db'
@@ -107,29 +112,65 @@ export class ApprovalService {
       )
     }
 
+    const previousStatus = approval.status
+    const previousResolvedAt = approval.resolvedAt
+
+    let resolvedEvent: TaskEvent | undefined
+    let auditLog: AuditLog | undefined
+
     approval.status = status
     approval.resolvedAt = new Date().toISOString()
 
-    await this.db.save()
+    try {
+      await this.db.save()
 
-    await this.eventService.append({
-      taskId: approval.taskId,
-      type: 'approval.resolved',
-      payload: {
-        approvalId: approval.id,
-        status,
-      },
-    })
+      resolvedEvent = await this.eventService.append({
+        taskId: approval.taskId,
+        type: 'approval.resolved',
+        payload: {
+          approvalId: approval.id,
+          status,
+        },
+      })
 
-    await this.auditService.append({
-      taskId: approval.taskId,
-      type: status === 'approved' ? 'approval.approved' : 'approval.rejected',
-      payload: {
-        approvalId: approval.id,
-      },
-    })
+      auditLog = await this.auditService.append({
+        taskId: approval.taskId,
+        type: status === 'approved' ? 'approval.approved' : 'approval.rejected',
+        payload: {
+          approvalId: approval.id,
+        },
+      })
 
-    return approval
+      return approval
+    } catch (error) {
+      approval.status = previousStatus
+
+      if (previousResolvedAt === undefined) {
+        delete approval.resolvedAt
+      } else {
+        approval.resolvedAt = previousResolvedAt
+      }
+
+      if (resolvedEvent) {
+        this.db.state.events = this.db.state.events.filter(
+          event => event.id !== resolvedEvent!.id,
+        )
+      }
+
+      if (auditLog) {
+        this.db.state.audits = this.db.state.audits.filter(
+          audit => audit.id !== auditLog!.id,
+        )
+      }
+
+      try {
+        await this.db.save()
+      } catch {
+        // Keep original resolve() error.
+      }
+
+      throw error
+    }
   }
 
   private async rollbackCreate(id: string): Promise<void> {

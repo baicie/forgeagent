@@ -262,4 +262,86 @@ describe('approvalGate', () => {
       await fixture.cleanup()
     }
   }, 20000)
+
+  it('uses the correct resume reason when rejecting a command', async () => {
+    const fixture = await createFixture()
+
+    try {
+      const approval = await fixture.createApproval(
+        `node -e "console.log('should-not-run')"`,
+      )
+
+      await fixture.approvalGate.reject(approval.id, 'user rejected')
+
+      const statusEvents = fixture.db.state.events.filter(
+        event => event.type === 'task.status',
+      )
+
+      expect(statusEvents).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            payload: expect.objectContaining({
+              previousStatus: 'waiting_approval',
+              status: 'running',
+              reason: 'Command rejected',
+            }),
+          }),
+        ]),
+      )
+    } finally {
+      await fixture.cleanup()
+    }
+  }, 20000)
+
+  it('emits tool.finished when command cannot be started', async () => {
+    const fixture = await createFixture()
+
+    try {
+      const missingCwd = join(fixture.worktreePath, 'missing-dir')
+
+      const approval = await fixture.approvalService.create({
+        taskId: fixture.task.id,
+        toolCallId: 'tool_missing_cwd',
+        command: `node -e "console.log('should-not-run')"`,
+        cwd: missingCwd,
+        reason: 'missing cwd',
+        risk: 'low',
+      })
+
+      const response = await fixture.approvalGate.approve(approval.id)
+
+      expect(response.approval.status).toBe('approved')
+      expect(response.result.ok).toBe(false)
+      expect(response.result.error).toBeTruthy()
+
+      expect(fixture.db.state.events).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'tool.finished',
+            payload: expect.objectContaining({
+              ok: false,
+              result: expect.objectContaining({
+                ok: false,
+                error: expect.any(String),
+              }),
+            }),
+          }),
+        ]),
+      )
+
+      expect(fixture.db.state.audits).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'command.finished',
+            payload: expect.objectContaining({
+              ok: false,
+              error: expect.any(String),
+            }),
+          }),
+        ]),
+      )
+    } finally {
+      await fixture.cleanup()
+    }
+  }, 20000)
 })

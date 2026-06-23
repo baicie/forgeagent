@@ -56,4 +56,53 @@ describe('approvalService', () => {
 
     expect(db.state.approvals).toEqual([])
   })
+
+  it('rolls back resolved approval when audit creation fails', async () => {
+    const db = createInMemoryRunnerDb()
+    const eventService = new EventService(db)
+    const auditService = {
+      append: vi.fn(async input => {
+        if (input.type === 'approval.required') {
+          db.state.audits.push({
+            id: 'audit_required',
+            taskId: input.taskId,
+            type: input.type,
+            payload: input.payload,
+            createdAt: '2026-06-22T00:00:00.000Z',
+          })
+
+          return db.state.audits[0]
+        }
+
+        throw new Error('audit failed')
+      }),
+    } as unknown as AuditService
+
+    const service = new ApprovalService(db, eventService, auditService)
+
+    const approval = await service.create({
+      taskId: 'task_1',
+      toolCallId: 'tool_1',
+      command: 'pnpm test',
+      cwd: '/tmp/worktree',
+      reason: 'verify',
+      risk: 'medium',
+    })
+
+    await expect(service.approve(approval.id)).rejects.toThrow('audit failed')
+
+    expect(service.get(approval.id).status).toBe('pending')
+    expect(service.get(approval.id).resolvedAt).toBeUndefined()
+
+    expect(
+      db.state.events.some(
+        event =>
+          event.type === 'approval.resolved' &&
+          event.payload &&
+          typeof event.payload === 'object' &&
+          'approvalId' in event.payload &&
+          event.payload.approvalId === approval.id,
+      ),
+    ).toBe(false)
+  })
 })

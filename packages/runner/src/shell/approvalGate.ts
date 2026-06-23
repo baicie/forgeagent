@@ -73,33 +73,62 @@ export class ApprovalGate {
         command: approval.command,
         cwd,
         risk: policy.risk,
+        riskColor: policy.riskColor,
       },
     })
 
     const outputWrites: Array<Promise<unknown>> = []
+    let outputWriteError: unknown
 
-    const result = await this.options.shellExecutor.execute({
-      command: approval.command,
-      cwd,
-      timeoutMs: policy.timeoutMs,
-      onOutput: chunk => {
-        outputWrites.push(
-          this.options.eventService.append({
-            taskId: approval.taskId,
-            type: 'tool.output',
-            payload: {
-              toolCallId: approval.toolCallId,
-              toolName: 'run_command',
-              command: approval.command,
-              stream: chunk.stream,
-              chunk: chunk.chunk,
-            },
-          }),
-        )
-      },
-    })
+    let result: ShellExecutionResult
+
+    try {
+      result = await this.options.shellExecutor.execute({
+        command: approval.command,
+        cwd,
+        timeoutMs: policy.timeoutMs,
+        onOutput: chunk => {
+          const write = this.options.eventService
+            .append({
+              taskId: approval.taskId,
+              type: 'tool.output',
+              payload: {
+                toolCallId: approval.toolCallId,
+                toolName: 'run_command',
+                command: approval.command,
+                stream: chunk.stream,
+                chunk: chunk.chunk,
+              },
+            })
+            .catch(error => {
+              outputWriteError = outputWriteError ?? error
+            })
+
+          outputWrites.push(write)
+        },
+      })
+    } catch (shellError) {
+      result = {
+        ok: false,
+        command: approval.command,
+        cwd,
+        exitCode: null,
+        signal: null,
+        timedOut: false,
+        stdout: '',
+        stderr: '',
+        error:
+          shellError instanceof Error ? shellError.message : String(shellError),
+        startedAt: new Date().toISOString(),
+        finishedAt: new Date().toISOString(),
+      }
+    }
 
     await Promise.all(outputWrites)
+
+    if (outputWriteError) {
+      throw outputWriteError
+    }
 
     await this.options.eventService.append({
       taskId: approval.taskId,
@@ -125,6 +154,7 @@ export class ApprovalGate {
         exitCode: result.exitCode,
         signal: result.signal,
         timedOut: result.timedOut,
+        error: result.error,
       },
     })
 
@@ -186,12 +216,12 @@ export class ApprovalGate {
 
   private async resumeTaskIfWaitingApproval(
     taskId: string,
-    _reason: string,
+    reason: string,
   ): Promise<void> {
     const task = this.options.taskService.get(taskId)
 
     if (task.status === 'waiting_approval') {
-      await this.options.taskService.resume(taskId, 'Command approved')
+      await this.options.taskService.resume(taskId, reason)
     }
   }
 }
