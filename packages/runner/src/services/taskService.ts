@@ -8,6 +8,7 @@ import type { RunnerConfig } from '../config'
 import type { RunnerDb } from '../db'
 import type { GitCommitService } from '../git/commit'
 import type { GitDiffService } from '../git/diff'
+import { assertOriginalRepoReadyForApply } from '../git/deliveryGuard'
 import type { GitPatchService } from '../git/patch'
 import type { GitRepositoryService } from '../git/repository'
 import type { GitWorktreeService } from '../git/worktree'
@@ -28,6 +29,12 @@ function createDefaultCommitMessage(task: Task): string {
   const prompt = task.prompt.trim().replace(/\s+/g, ' ').slice(0, 72)
 
   return prompt ? `forgeagent: ${prompt}` : `forgeagent: ${task.id}`
+}
+
+function normalizeCommitMessage(task: Task, message?: string): string {
+  const normalized = message?.trim()
+
+  return normalized || createDefaultCommitMessage(task)
 }
 
 export class TaskService {
@@ -253,7 +260,15 @@ export class TaskService {
 
   async apply(id: string): Promise<Task> {
     const task = this.get(id)
+    this.assertCanDeliver(task, 'applied')
+
     const workspace = this.workspaceService.get(task.workspaceId)
+
+    await assertOriginalRepoReadyForApply({
+      task,
+      gitRoot: workspace.gitRoot,
+      gitRepositoryService: this.gitRepositoryService,
+    })
 
     const patch = await this.gitPatchService.createPatchFromWorktree(
       task.id,
@@ -289,7 +304,9 @@ export class TaskService {
 
   async commit(id: string, input: CommitTaskInput = {}): Promise<Task> {
     const task = this.get(id)
-    const message = input.message || createDefaultCommitMessage(task)
+    this.assertCanDeliver(task, 'committed')
+
+    const message = normalizeCommitMessage(task, input.message)
 
     const result = await this.gitCommitService.commitWorktree(
       task.worktreePath,
@@ -358,6 +375,20 @@ export class TaskService {
 
   async cancel(id: string): Promise<Task> {
     return this.transition(id, 'cancelled', 'Task cancelled')
+  }
+
+  private assertCanDeliver(task: Task, status: 'applied' | 'committed'): void {
+    if (!canTransitionTaskStatus(task.status, status)) {
+      throw createForgeAgentError(
+        'INVALID_TASK_STATUS_TRANSITION',
+        `Invalid task status transition: ${task.status} -> ${status}`,
+        {
+          taskId: task.id,
+          from: task.status,
+          to: status,
+        },
+      )
+    }
   }
 
   private async cleanupFailedTaskCreate(input: {

@@ -279,4 +279,168 @@ describe('task delivery routes', () => {
       await fixture.cleanup()
     }
   })
+
+  it('does not apply patch when task is not completed', async () => {
+    const fixture = await createServerFixture()
+
+    try {
+      const taskResponse = await fixture.app.inject({
+        method: 'POST',
+        url: '/api/tasks',
+        payload: {
+          workspaceId: fixture.workspace.id,
+          prompt: 'apply before completed',
+        },
+      })
+
+      const task = taskResponse.json() as {
+        id: string
+        worktreePath: string
+      }
+
+      await fixture.app.inject({
+        method: 'POST',
+        url: `/api/tasks/${task.id}/prepare`,
+      })
+
+      await writeFile(
+        join(task.worktreePath, 'README.md'),
+        '# Should not be applied\n',
+        'utf-8',
+      )
+
+      const response = await fixture.app.inject({
+        method: 'POST',
+        url: `/api/tasks/${task.id}/apply`,
+      })
+
+      expect(response.statusCode).toBe(409)
+      expect((response.json() as { error: { code: string } }).error.code).toBe(
+        'INVALID_TASK_STATUS_TRANSITION',
+      )
+
+      await expect(
+        readFile(join(fixture.gitFixture.repoPath, 'README.md'), 'utf-8'),
+      ).resolves.not.toContain('Should not be applied')
+    } finally {
+      await fixture.cleanup()
+    }
+  })
+
+  it('does not commit worktree when task is not completed', async () => {
+    const fixture = await createServerFixture()
+
+    try {
+      const taskResponse = await fixture.app.inject({
+        method: 'POST',
+        url: '/api/tasks',
+        payload: {
+          workspaceId: fixture.workspace.id,
+          prompt: 'commit before completed',
+        },
+      })
+
+      const task = taskResponse.json() as {
+        id: string
+        worktreePath: string
+      }
+
+      await fixture.app.inject({
+        method: 'POST',
+        url: `/api/tasks/${task.id}/prepare`,
+      })
+
+      await writeFile(
+        join(task.worktreePath, 'README.md'),
+        '# Should not be committed\n',
+        'utf-8',
+      )
+
+      const headBefore = await runGitFixture(task.worktreePath, [
+        'rev-parse',
+        'HEAD',
+      ])
+
+      const response = await fixture.app.inject({
+        method: 'POST',
+        url: `/api/tasks/${task.id}/commit`,
+        payload: {
+          message: 'test: should not commit',
+        },
+      })
+
+      expect(response.statusCode).toBe(409)
+      expect((response.json() as { error: { code: string } }).error.code).toBe(
+        'INVALID_TASK_STATUS_TRANSITION',
+      )
+
+      const headAfter = await runGitFixture(task.worktreePath, [
+        'rev-parse',
+        'HEAD',
+      ])
+
+      expect(headAfter).toBe(headBefore)
+    } finally {
+      await fixture.cleanup()
+    }
+  })
+
+  it('returns 400 for invalid commit body', async () => {
+    const fixture = await createServerFixture()
+
+    try {
+      const task = await fixture.createTask('invalid commit body')
+
+      const response = await fixture.app.inject({
+        method: 'POST',
+        url: `/api/tasks/${task.id}/commit`,
+        payload: {
+          message: 123,
+        },
+      })
+
+      expect(response.statusCode).toBe(400)
+      expect((response.json() as { error: { code: string } }).error.code).toBe(
+        'BAD_REQUEST',
+      )
+    } finally {
+      await fixture.cleanup()
+    }
+  })
+
+  it('blocks apply when original repo has local changes', async () => {
+    const fixture = await createServerFixture()
+
+    try {
+      const task = await fixture.createTask('apply with dirty original')
+
+      await writeFile(
+        join(task.worktreePath, 'README.md'),
+        '# Worktree change\n',
+        'utf-8',
+      )
+
+      await writeFile(
+        join(fixture.gitFixture.repoPath, 'local-only.txt'),
+        'dirty\n',
+        'utf-8',
+      )
+
+      const response = await fixture.app.inject({
+        method: 'POST',
+        url: `/api/tasks/${task.id}/apply`,
+      })
+
+      expect(response.statusCode).toBe(409)
+      expect((response.json() as { error: { code: string } }).error.code).toBe(
+        'PATCH_APPLY_FAILED',
+      )
+
+      await expect(
+        readFile(join(fixture.gitFixture.repoPath, 'README.md'), 'utf-8'),
+      ).resolves.not.toContain('Worktree change')
+    } finally {
+      await fixture.cleanup()
+    }
+  })
 })

@@ -363,7 +363,9 @@ describe('runner server', () => {
       })
 
       expect(applyResponse.statusCode).toBe(409)
-      expect(applyResponse.json().error.code).toBe('DIFF_EMPTY')
+      expect(applyResponse.json().error.code).toBe(
+        'INVALID_TASK_STATUS_TRANSITION',
+      )
     } finally {
       await fixture.cleanup()
       await app.close()

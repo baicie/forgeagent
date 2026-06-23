@@ -1,11 +1,14 @@
 import { CreateTaskInputSchema } from '@forgeagent/core'
 import type { FastifyInstance } from 'fastify'
+import { z } from 'zod'
 import type { RunnerContext } from '../context'
 import { parseBody } from '../validation'
 
-interface CommitTaskBody {
-  message?: string
-}
+const CommitTaskBodySchema = z
+  .object({
+    message: z.string().min(1).optional(),
+  })
+  .default({})
 
 export function registerTaskRoutes(
   app: FastifyInstance,
@@ -21,7 +24,7 @@ export function registerTaskRoutes(
     context.taskService.get(request.params.id),
   )
 
-  app.post('/api/tasks', async (request: any, reply) => {
+  app.post('/api/tasks', async (request, reply) => {
     const input = parseBody(CreateTaskInputSchema, request.body)
     const task = await context.taskService.create(input)
 
@@ -30,37 +33,37 @@ export function registerTaskRoutes(
 
   app.post<{
     Params: { id: string }
-  }>('/api/tasks/:id/run', async (request: any) =>
+  }>('/api/tasks/:id/run', async request =>
     context.agentLoop.run(request.params.id),
   )
 
   app.post<{
     Params: { id: string }
-  }>('/api/tasks/:id/prepare', async (request: any) =>
+  }>('/api/tasks/:id/prepare', async request =>
     context.taskService.prepare(request.params.id),
   )
 
   app.post<{
     Params: { id: string }
-  }>('/api/tasks/:id/start', async (request: any) =>
+  }>('/api/tasks/:id/start', async request =>
     context.taskService.start(request.params.id),
   )
 
   app.post<{
     Params: { id: string }
-  }>('/api/tasks/:id/wait-approval', async (request: any) =>
+  }>('/api/tasks/:id/wait-approval', async request =>
     context.taskService.waitForApproval(request.params.id),
   )
 
   app.post<{
     Params: { id: string }
-  }>('/api/tasks/:id/complete', async (request: any) =>
+  }>('/api/tasks/:id/complete', async request =>
     context.taskService.complete(request.params.id),
   )
 
   app.post<{
     Params: { id: string }
-  }>('/api/tasks/:id/fail', async (request: any) =>
+  }>('/api/tasks/:id/fail', async request =>
     context.taskService.fail(request.params.id, {
       message: 'Task failed',
     }),
@@ -80,12 +83,11 @@ export function registerTaskRoutes(
 
   app.post<{
     Params: { id: string }
-    Body: CommitTaskBody
-  }>('/api/tasks/:id/commit', async (request: any) =>
-    context.taskService.commit(request.params.id, {
-      message: request.body?.message,
-    }),
-  )
+  }>('/api/tasks/:id/commit', async request => {
+    const body = parseBody(CommitTaskBodySchema, request.body ?? {})
+
+    return context.taskService.commit(request.params.id, body)
+  })
 
   app.post<{
     Params: { id: string }
