@@ -23,6 +23,8 @@ export function statusFromErrorCode(code: string): number {
 
     case 'INVALID_TASK_STATUS_TRANSITION':
     case 'APPROVAL_ALREADY_RESOLVED':
+    case 'DIFF_EMPTY':
+    case 'PATCH_APPLY_FAILED':
       return 409
 
     case 'SENSITIVE_FILE_BLOCKED':

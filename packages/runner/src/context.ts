@@ -5,6 +5,7 @@ import {
   OpenAICompatibleModelGateway,
   loadModelGatewayConfigFromEnv,
 } from './agent/model'
+import { GitCommitService } from './git/commit'
 import { GitDiffService } from './git/diff'
 import { GitClient } from './git/gitClient'
 import { GitPatchService } from './git/patch'
@@ -29,6 +30,7 @@ export interface RunnerContext {
   gitWorktreeService: GitWorktreeService
   gitDiffService: GitDiffService
   gitPatchService: GitPatchService
+  gitCommitService: GitCommitService
   shellExecutor: ShellExecutor
   commandPolicy: CommandPolicy
   approvalGate: ApprovalGate
@@ -48,6 +50,7 @@ export function createRunnerContext(
   const gitWorktreeService = new GitWorktreeService(gitClient)
   const gitDiffService = new GitDiffService(gitClient)
   const gitPatchService = new GitPatchService(gitClient, gitDiffService)
+  const gitCommitService = new GitCommitService(gitClient, gitDiffService)
 
   const shellExecutor = new ShellExecutor()
   const commandPolicy = new CommandPolicy()
@@ -62,10 +65,14 @@ export function createRunnerContext(
     gitRepositoryService,
     gitWorktreeService,
     gitDiffService,
+    gitPatchService,
+    gitCommitService,
     eventService,
     auditService,
   )
+
   const approvalService = new ApprovalService(db, eventService, auditService)
+
   const approvalGate = new ApprovalGate({
     approvalService,
     taskService,
@@ -89,6 +96,7 @@ export function createRunnerContext(
     gitWorktreeService,
     gitDiffService,
     gitPatchService,
+    gitCommitService,
     shellExecutor,
     commandPolicy,
     approvalGate,

@@ -3,6 +3,10 @@ import type { FastifyInstance } from 'fastify'
 import type { RunnerContext } from '../context'
 import { parseBody } from '../validation'
 
+interface CommitTaskBody {
+  message?: string
+}
+
 export function registerTaskRoutes(
   app: FastifyInstance,
   context: RunnerContext,
@@ -76,8 +80,11 @@ export function registerTaskRoutes(
 
   app.post<{
     Params: { id: string }
-  }>('/api/tasks/:id/commit', async request =>
-    context.taskService.commit(request.params.id),
+    Body: CommitTaskBody
+  }>('/api/tasks/:id/commit', async (request: any) =>
+    context.taskService.commit(request.params.id, {
+      message: request.body?.message,
+    }),
   )
 
   app.post<{

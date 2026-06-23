@@ -7,6 +7,8 @@ import { createInMemoryRunnerDb } from '../db'
 import type { GitDiffService } from '../git/diff'
 import type { GitRepositoryService } from '../git/repository'
 import type { GitWorktreeService } from '../git/worktree'
+import type { GitPatchService } from '../git/patch'
+import type { GitCommitService } from '../git/commit'
 import { ApprovalService } from '../services/approvalService'
 import { AuditService } from '../services/auditService'
 import { EventService } from '../services/eventService'
@@ -70,6 +72,16 @@ async function createFixture() {
     getDiff: () => Promise.resolve(''),
   } as unknown as GitDiffService
 
+  const gitPatchService = {
+    createPatchFromWorktree: () =>
+      Promise.resolve({ patchFile: '/tmp/p.patch', diff: '', bytes: 0 }),
+  } as unknown as GitPatchService
+
+  const gitCommitService = {
+    commitWorktree: () =>
+      Promise.resolve({ commitSha: 'a'.repeat(40), message: 'test' }),
+  } as unknown as GitCommitService
+
   const eventService = new EventService(db)
   const auditService = new AuditService(db)
   const taskService = new TaskService(
@@ -81,6 +93,8 @@ async function createFixture() {
     gitRepositoryService,
     gitWorktreeService,
     gitDiffService,
+    gitPatchService,
+    gitCommitService,
     eventService,
     auditService,
   )

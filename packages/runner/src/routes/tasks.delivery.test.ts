@@ -1,0 +1,282 @@
+import { access, readFile, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { loadRunnerConfig } from '../config'
+import { createInMemoryRunnerDb } from '../db'
+import { createRunnerServer } from '../server'
+import { createGitFixture, runGitFixture } from '../test/git-fixtures'
+
+async function createServerFixture() {
+  const gitFixture = await createGitFixture()
+  const app = await createRunnerServer({
+    config: loadRunnerConfig({
+      dataDir: join(gitFixture.tempDir, '.forgeagent'),
+    }),
+    db: createInMemoryRunnerDb(),
+  })
+
+  const workspaceResponse = await app.inject({
+    method: 'POST',
+    url: '/api/workspaces',
+    payload: {
+      repoPath: gitFixture.repoPath,
+    },
+  })
+
+  const workspace = workspaceResponse.json() as { id: string }
+
+  async function createTask(prompt = 'delivery test') {
+    const taskResponse = await app.inject({
+      method: 'POST',
+      url: '/api/tasks',
+      payload: {
+        workspaceId: workspace.id,
+        prompt,
+      },
+    })
+
+    const task = taskResponse.json() as {
+      id: string
+      worktreePath: string
+    }
+
+    await app.inject({
+      method: 'POST',
+      url: `/api/tasks/${task.id}/prepare`,
+    })
+    await app.inject({
+      method: 'POST',
+      url: `/api/tasks/${task.id}/start`,
+    })
+    await app.inject({
+      method: 'POST',
+      url: `/api/tasks/${task.id}/complete`,
+    })
+
+    return task
+  }
+
+  return {
+    app,
+    gitFixture,
+    workspace,
+    createTask,
+    async cleanup() {
+      await app.close()
+      await gitFixture.cleanup()
+    },
+  }
+}
+
+describe('task delivery routes', () => {
+  it('shows diff for added, modified and deleted files', async () => {
+    const fixture = await createServerFixture()
+
+    try {
+      await writeFile(join(fixture.gitFixture.repoPath, 'delete-me.txt'), 'x\n')
+      await runGitFixture(fixture.gitFixture.repoPath, ['add', 'delete-me.txt'])
+      await runGitFixture(fixture.gitFixture.repoPath, [
+        'commit',
+        '-m',
+        'add delete fixture',
+      ])
+
+      const task = await fixture.createTask('diff all files')
+
+      await writeFile(
+        join(task.worktreePath, 'README.md'),
+        '# Modified by task\n',
+      )
+      await writeFile(join(task.worktreePath, 'new-file.txt'), 'new file\n')
+      await import('node:fs/promises').then(fs =>
+        fs.rm(join(task.worktreePath, 'delete-me.txt')),
+      )
+
+      const response = await fixture.app.inject({
+        method: 'GET',
+        url: `/api/tasks/${task.id}/diff`,
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect((response.json() as { diff: string }).diff).toContain('README.md')
+      expect((response.json() as { diff: string }).diff).toContain(
+        'new-file.txt',
+      )
+      expect((response.json() as { diff: string }).diff).toContain(
+        'delete-me.txt',
+      )
+    } finally {
+      await fixture.cleanup()
+    }
+  })
+
+  it('applies worktree changes to original repo', async () => {
+    const fixture = await createServerFixture()
+
+    try {
+      const task = await fixture.createTask('apply changes')
+
+      await writeFile(
+        join(task.worktreePath, 'README.md'),
+        '# Applied through API\n',
+        'utf-8',
+      )
+
+      const response = await fixture.app.inject({
+        method: 'POST',
+        url: `/api/tasks/${task.id}/apply`,
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect((response.json() as { status: string }).status).toBe('applied')
+
+      await expect(
+        readFile(join(fixture.gitFixture.repoPath, 'README.md'), 'utf-8'),
+      ).resolves.toContain('Applied through API')
+    } finally {
+      await fixture.cleanup()
+    }
+  })
+
+  it('commits worktree changes', async () => {
+    const fixture = await createServerFixture()
+
+    try {
+      const task = await fixture.createTask('commit changes')
+
+      await writeFile(
+        join(task.worktreePath, 'README.md'),
+        '# Committed through API\n',
+        'utf-8',
+      )
+
+      const response = await fixture.app.inject({
+        method: 'POST',
+        url: `/api/tasks/${task.id}/commit`,
+        payload: {
+          message: 'test: commit delivery changes',
+        },
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect((response.json() as { status: string }).status).toBe('committed')
+
+      const message = await runGitFixture(task.worktreePath, [
+        'log',
+        '-1',
+        '--format=%s',
+      ])
+
+      expect(message).toBe('test: commit delivery changes')
+    } finally {
+      await fixture.cleanup()
+    }
+  })
+
+  it('discards worktree and leaves original repo clean', async () => {
+    const fixture = await createServerFixture()
+
+    try {
+      const task = await fixture.createTask('discard changes')
+
+      await writeFile(
+        join(task.worktreePath, 'README.md'),
+        '# Should be discarded\n',
+        'utf-8',
+      )
+
+      const response = await fixture.app.inject({
+        method: 'POST',
+        url: `/api/tasks/${task.id}/discard`,
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect((response.json() as { status: string }).status).toBe('discarded')
+
+      await expect(access(task.worktreePath)).rejects.toThrow()
+
+      const status = await runGitFixture(fixture.gitFixture.repoPath, [
+        'status',
+        '--porcelain',
+      ])
+
+      expect(status).toBe('')
+    } finally {
+      await fixture.cleanup()
+    }
+  })
+
+  it('returns DIFF_EMPTY when applying empty diff', async () => {
+    const fixture = await createServerFixture()
+
+    try {
+      const task = await fixture.createTask('empty apply')
+
+      const response = await fixture.app.inject({
+        method: 'POST',
+        url: `/api/tasks/${task.id}/apply`,
+      })
+
+      expect(response.statusCode).toBe(409)
+      expect((response.json() as { error: { code: string } }).error.code).toBe(
+        'DIFF_EMPTY',
+      )
+    } finally {
+      await fixture.cleanup()
+    }
+  })
+
+  it('returns DIFF_EMPTY when committing empty diff', async () => {
+    const fixture = await createServerFixture()
+
+    try {
+      const task = await fixture.createTask('empty commit')
+
+      const response = await fixture.app.inject({
+        method: 'POST',
+        url: `/api/tasks/${task.id}/commit`,
+        payload: {
+          message: 'test: empty commit',
+        },
+      })
+
+      expect(response.statusCode).toBe(409)
+      expect((response.json() as { error: { code: string } }).error.code).toBe(
+        'DIFF_EMPTY',
+      )
+    } finally {
+      await fixture.cleanup()
+    }
+  })
+
+  it('returns PATCH_APPLY_FAILED when patch conflicts', async () => {
+    const fixture = await createServerFixture()
+
+    try {
+      const task = await fixture.createTask('conflict apply')
+
+      await writeFile(
+        join(task.worktreePath, 'README.md'),
+        '# Worktree change\n',
+        'utf-8',
+      )
+
+      await writeFile(
+        join(fixture.gitFixture.repoPath, 'README.md'),
+        '# Original changed\n',
+        'utf-8',
+      )
+
+      const response = await fixture.app.inject({
+        method: 'POST',
+        url: `/api/tasks/${task.id}/apply`,
+      })
+
+      expect(response.statusCode).toBe(409)
+      expect((response.json() as { error: { code: string } }).error.code).toBe(
+        'PATCH_APPLY_FAILED',
+      )
+    } finally {
+      await fixture.cleanup()
+    }
+  })
+})

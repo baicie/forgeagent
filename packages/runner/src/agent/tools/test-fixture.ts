@@ -3,6 +3,8 @@ import { loadRunnerConfig } from '../../config'
 import { createInMemoryRunnerDb } from '../../db'
 import { GitDiffService } from '../../git/diff'
 import { GitClient } from '../../git/gitClient'
+import { GitPatchService } from '../../git/patch'
+import { GitCommitService } from '../../git/commit'
 import { GitRepositoryService } from '../../git/repository'
 import { GitWorktreeService } from '../../git/worktree'
 import { createGitFixture } from '../../test/git-fixtures'
@@ -36,6 +38,8 @@ export async function createToolTestFixture(): Promise<ToolTestFixture> {
   const gitRepositoryService = new GitRepositoryService(gitClient)
   const gitWorktreeService = new GitWorktreeService(gitClient)
   const gitDiffService = new GitDiffService(gitClient)
+  const gitPatchService = new GitPatchService(gitClient, gitDiffService)
+  const gitCommitService = new GitCommitService(gitClient, gitDiffService)
 
   const eventService = new EventService(db)
   const auditService = new AuditService(db)
@@ -47,6 +51,8 @@ export async function createToolTestFixture(): Promise<ToolTestFixture> {
     gitRepositoryService,
     gitWorktreeService,
     gitDiffService,
+    gitPatchService,
+    gitCommitService,
     eventService,
     auditService,
   )

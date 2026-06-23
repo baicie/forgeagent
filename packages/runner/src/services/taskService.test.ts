@@ -3,6 +3,8 @@ import { createInMemoryRunnerDb } from '../db'
 import type { GitDiffService } from '../git/diff'
 import type { GitRepositoryService } from '../git/repository'
 import type { GitWorktreeService } from '../git/worktree'
+import type { GitPatchService } from '../git/patch'
+import type { GitCommitService } from '../git/commit'
 import type { AuditService } from './auditService'
 import { EventService } from './eventService'
 import { TaskService } from './taskService'
@@ -54,6 +56,16 @@ describe('taskService', () => {
         getDiff: vi.fn(async () => ''),
       } as unknown as GitDiffService
 
+      const gitPatchService = {
+        createPatchFromWorktree: () =>
+          Promise.resolve({ patchFile: '/tmp/p.patch', diff: '', bytes: 0 }),
+      } as unknown as GitPatchService
+
+      const gitCommitService = {
+        commitWorktree: () =>
+          Promise.resolve({ commitSha: 'a'.repeat(40), message: 'test' }),
+      } as unknown as GitCommitService
+
       const eventService = new EventService(db)
 
       const auditService = {
@@ -69,6 +81,8 @@ describe('taskService', () => {
         gitRepositoryService,
         gitWorktreeService,
         gitDiffService,
+        gitPatchService,
+        gitCommitService,
         eventService,
         auditService,
       )
@@ -150,6 +164,16 @@ describe('taskService', () => {
         getDiff: vi.fn(async () => ''),
       } as unknown as GitDiffService
 
+      const gitPatchService = {
+        createPatchFromWorktree: () =>
+          Promise.resolve({ patchFile: '/tmp/p.patch', diff: '', bytes: 0 }),
+      } as unknown as GitPatchService
+
+      const gitCommitService = {
+        commitWorktree: () =>
+          Promise.resolve({ commitSha: 'a'.repeat(40), message: 'test' }),
+      } as unknown as GitCommitService
+
       const eventService = new EventService(db)
 
       const auditService = {
@@ -163,6 +187,8 @@ describe('taskService', () => {
         gitRepositoryService,
         gitWorktreeService,
         gitDiffService,
+        gitPatchService,
+        gitCommitService,
         eventService,
         auditService,
       )

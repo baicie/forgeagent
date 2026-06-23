@@ -1,3 +1,4 @@
+export * from './commit'
 export * from './diff'
 export * from './gitClient'
 export * from './patch'

@@ -6,7 +6,9 @@ import {
 import { randomUUID } from 'node:crypto'
 import type { RunnerConfig } from '../config'
 import type { RunnerDb } from '../db'
+import type { GitCommitService } from '../git/commit'
 import type { GitDiffService } from '../git/diff'
+import type { GitPatchService } from '../git/patch'
 import type { GitRepositoryService } from '../git/repository'
 import type { GitWorktreeService } from '../git/worktree'
 import type { AuditService } from './auditService'
@@ -18,6 +20,16 @@ export interface CreateTaskInput {
   prompt: string
 }
 
+export interface CommitTaskInput {
+  message?: string
+}
+
+function createDefaultCommitMessage(task: Task): string {
+  const prompt = task.prompt.trim().replace(/\s+/g, ' ').slice(0, 72)
+
+  return prompt ? `forgeagent: ${prompt}` : `forgeagent: ${task.id}`
+}
+
 export class TaskService {
   constructor(
     private readonly db: RunnerDb,
@@ -26,6 +38,8 @@ export class TaskService {
     private readonly gitRepositoryService: GitRepositoryService,
     private readonly gitWorktreeService: GitWorktreeService,
     private readonly gitDiffService: GitDiffService,
+    private readonly gitPatchService: GitPatchService,
+    private readonly gitCommitService: GitCommitService,
     private readonly eventService: EventService,
     private readonly auditService: AuditService,
   ) {}
@@ -222,6 +236,15 @@ export class TaskService {
       },
     })
 
+    await this.auditService.append({
+      taskId: task.id,
+      type: 'diff.generated',
+      payload: {
+        changed: diff.trim().length > 0,
+        bytes: Buffer.byteLength(diff, 'utf-8'),
+      },
+    })
+
     return {
       taskId: id,
       diff,
@@ -229,11 +252,76 @@ export class TaskService {
   }
 
   async apply(id: string): Promise<Task> {
-    return this.transition(id, 'applied', 'Task applied')
+    const task = this.get(id)
+    const workspace = this.workspaceService.get(task.workspaceId)
+
+    const patch = await this.gitPatchService.createPatchFromWorktree(
+      task.id,
+      task.worktreePath,
+      this.config.dataDir,
+    )
+
+    await this.gitPatchService.applyPatch(workspace.gitRoot, patch.patchFile)
+
+    const appliedTask = await this.transition(id, 'applied', 'Task applied')
+
+    await this.eventService.append({
+      taskId: task.id,
+      type: 'agent.message',
+      payload: {
+        role: 'system',
+        message: `Patch applied to original repository: ${patch.patchFile}`,
+      },
+    })
+
+    await this.auditService.append({
+      taskId: task.id,
+      type: 'task.applied',
+      payload: {
+        patchFile: patch.patchFile,
+        bytes: patch.bytes,
+        gitRoot: workspace.gitRoot,
+      },
+    })
+
+    return appliedTask
   }
 
-  async commit(id: string): Promise<Task> {
-    return this.transition(id, 'committed', 'Task committed')
+  async commit(id: string, input: CommitTaskInput = {}): Promise<Task> {
+    const task = this.get(id)
+    const message = input.message || createDefaultCommitMessage(task)
+
+    const result = await this.gitCommitService.commitWorktree(
+      task.worktreePath,
+      message,
+    )
+
+    const committedTask = await this.transition(
+      id,
+      'committed',
+      'Task committed',
+    )
+
+    await this.eventService.append({
+      taskId: task.id,
+      type: 'agent.message',
+      payload: {
+        role: 'system',
+        message: `Worktree committed: ${result.commitSha}`,
+      },
+    })
+
+    await this.auditService.append({
+      taskId: task.id,
+      type: 'task.committed',
+      payload: {
+        commitSha: result.commitSha,
+        message: result.message,
+        worktreePath: task.worktreePath,
+      },
+    })
+
+    return committedTask
   }
 
   async discard(id: string): Promise<Task> {

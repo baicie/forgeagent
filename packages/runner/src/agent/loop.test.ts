@@ -7,6 +7,8 @@ import { createInMemoryRunnerDb } from '../db'
 import type { GitDiffService } from '../git/diff'
 import type { GitRepositoryService } from '../git/repository'
 import type { GitWorktreeService } from '../git/worktree'
+import type { GitPatchService } from '../git/patch'
+import type { GitCommitService } from '../git/commit'
 import { ApprovalGate } from '../shell/approvalGate'
 import { CommandPolicy } from '../shell/commandPolicy'
 import { ShellExecutor } from '../shell/shellExecutor'
@@ -126,6 +128,21 @@ function createLoopFixture(
     getDiff: vi.fn(async () => 'diff --git a/README.md b/README.md\n'),
   } as unknown as GitDiffService
 
+  const gitPatchService = {
+    createPatchFromWorktree: vi.fn(async () => ({
+      patchFile: '/tmp/patch.patch',
+      diff: 'diff',
+      bytes: 4,
+    })),
+  } as unknown as GitPatchService
+
+  const gitCommitService = {
+    commitWorktree: vi.fn(async () => ({
+      commitSha: 'a'.repeat(40),
+      message: 'test',
+    })),
+  } as unknown as GitCommitService
+
   const eventService = new EventService(db)
   const auditService = new AuditService(db)
   const config = loadRunnerConfig({
@@ -139,6 +156,8 @@ function createLoopFixture(
     gitRepositoryService,
     gitWorktreeService,
     gitDiffService,
+    gitPatchService,
+    gitCommitService,
     eventService,
     auditService,
   )
