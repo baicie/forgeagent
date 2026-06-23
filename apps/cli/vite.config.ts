@@ -29,6 +29,8 @@ export default defineConfig({
         'node:child_process',
         'node:url',
         'node:crypto',
+        'node:util',
+        'node:stream/web',
         '@forgeagent/core',
         '@forgeagent/runner',
         'commander',

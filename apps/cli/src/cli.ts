@@ -1,39 +1,27 @@
 import { Command } from 'commander'
-import { chatCommand } from './commands/chat'
-import { configCommand } from './commands/config'
-import { runCommand } from './commands/run'
+import type { RunnerApiClientFactory } from './client/runnerClient'
+import { legacyCommand } from './commands/legacy'
 import { runnerCommand } from './commands/runner'
-import { skillCommand } from './commands/skill'
+import { createTaskCommand } from './commands/task'
+import { createWorkspaceCommand } from './commands/workspace'
 
-export function createCliProgram() {
+export interface CreateCliProgramOptions {
+  clientFactory?: RunnerApiClientFactory
+}
+
+export function createCliProgram(options: CreateCliProgramOptions = {}) {
   const program = new Command()
 
-  program.name('forgeagent').description('ForgeAgent OS CLI').version('0.1.0')
-
   program
-    .command('chat')
-    .description('Start an interactive chat session')
-    .argument('[prompt]', 'Initial prompt')
-    .option('-w, --workspace <path>', 'Workspace directory', process.cwd())
-    .option('-m, --model <name>', 'Model to use', 'openai/gpt-4.1')
-    .action(chatCommand)
-
-  program
-    .command('run')
-    .description('Run a single task')
-    .argument('<task>', 'Task description')
-    .option('-w, --workspace <path>', 'Workspace directory', process.cwd())
-    .option('-m, --model <name>', 'Model to use', 'openai/gpt-4.1')
-    .action(runCommand)
+    .name('forgeagent')
+    .description('ForgeAgent local-first Agent OS CLI')
+    .version('0.1.0')
+    .showHelpAfterError()
 
   program.addCommand(runnerCommand)
-
-  program.command('skill').description('Manage skills').addCommand(skillCommand)
-
-  program
-    .command('config')
-    .description('Manage configuration')
-    .addCommand(configCommand)
+  program.addCommand(createWorkspaceCommand(options.clientFactory))
+  program.addCommand(createTaskCommand(options.clientFactory))
+  program.addCommand(legacyCommand)
 
   return program
 }
