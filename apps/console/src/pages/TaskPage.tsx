@@ -64,6 +64,7 @@ export function TaskPage(props: TaskPageProps) {
     void loadDiff()
 
     const unsubscribe = subscribeTaskEvents({
+      baseUrl: props.client.baseUrl,
       taskId: props.taskId,
       onEvent(event) {
         setEvents(current => mergeTaskEvents(current, [event]))
@@ -82,7 +83,7 @@ export function TaskPage(props: TaskPageProps) {
     })
 
     return unsubscribe
-  }, [props.taskId])
+  }, [props.client, props.taskId])
 
   const runTask = async () => {
     await runAction(async () => {

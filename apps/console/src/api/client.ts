@@ -38,10 +38,29 @@ export class RunnerApiError extends Error {
   }
 }
 
+function normalizeBaseUrl(baseUrl: string): string {
+  return baseUrl.replace(/\/+$/, '')
+}
+
+async function readErrorPayload(response: Response): Promise<ApiErrorPayload> {
+  try {
+    return (await response.json()) as ApiErrorPayload
+  } catch {
+    return {
+      error: {
+        code: 'HTTP_ERROR',
+        message: `HTTP ${response.status} ${response.statusText}`,
+      },
+    }
+  }
+}
+
 export class RunnerApiClient {
-  constructor(
-    private readonly baseUrl = import.meta.env.VITE_FORGEAGENT_RUNNER_URL || '',
-  ) {}
+  readonly baseUrl: string
+
+  constructor(baseUrl = import.meta.env.VITE_FORGEAGENT_RUNNER_URL || '') {
+    this.baseUrl = normalizeBaseUrl(baseUrl)
+  }
 
   async health(): Promise<unknown> {
     return this.request('/api/health')
@@ -136,22 +155,34 @@ export class RunnerApiClient {
       body?: unknown
     } = {},
   ): Promise<T> {
-    const response = await fetch(`${this.baseUrl}${path}`, {
-      method: options.method || 'GET',
-      headers:
-        options.body === undefined
-          ? undefined
-          : {
-              'Content-Type': 'application/json',
-            },
-      body:
-        options.body === undefined ? undefined : JSON.stringify(options.body),
-    })
+    let response: Response
+
+    try {
+      response = await fetch(`${this.baseUrl}${path}`, {
+        method: options.method || 'GET',
+        headers:
+          options.body === undefined
+            ? undefined
+            : {
+                'Content-Type': 'application/json',
+              },
+        body:
+          options.body === undefined ? undefined : JSON.stringify(options.body),
+      })
+    } catch (error) {
+      throw new RunnerApiError(0, {
+        error: {
+          code: 'NETWORK_ERROR',
+          message: error instanceof Error ? error.message : String(error),
+        },
+      })
+    }
 
     if (!response.ok) {
-      const payload = (await response.json()) as ApiErrorPayload
-
-      throw new RunnerApiError(response.status, payload)
+      throw new RunnerApiError(
+        response.status,
+        await readErrorPayload(response),
+      )
     }
 
     return (await response.json()) as T

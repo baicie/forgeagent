@@ -105,4 +105,41 @@ describe('runner api client', () => {
       RunnerApiError,
     )
   })
+
+  it('normalizes base URL without trailing slash', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          items: [],
+        }),
+      })),
+    )
+
+    const client = new RunnerApiClient('http://127.0.0.1:17890/')
+    await client.listTasks()
+
+    expect(fetch).toHaveBeenCalledWith(
+      'http://127.0.0.1:17890/api/tasks',
+      expect.anything(),
+    )
+  })
+
+  it('wraps network errors as RunnerApiError', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new Error('connection refused')
+      }),
+    )
+
+    const client = new RunnerApiClient()
+
+    await expect(client.listTasks()).rejects.toMatchObject({
+      name: 'RunnerApiError',
+      status: 0,
+      code: 'NETWORK_ERROR',
+    })
+  })
 })

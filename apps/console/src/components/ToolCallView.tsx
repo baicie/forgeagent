@@ -6,11 +6,15 @@ function asRecord(value: unknown): Record<string, unknown> {
     : {}
 }
 
-function eventKey(event: TaskEvent, index: number): string {
+export function createToolEventKey(event: TaskEvent, index: number): string {
   const payload = asRecord(event.payload)
   const toolCallId = payload.toolCallId
 
-  return typeof toolCallId === 'string' ? toolCallId : `${event.id}-${index}`
+  if (typeof toolCallId === 'string') {
+    return `${toolCallId}:${event.type}:${event.id}:${index}`
+  }
+
+  return `${event.id}:${index}`
 }
 
 export function ToolCallView(props: { events: TaskEvent[] }) {
@@ -28,7 +32,10 @@ export function ToolCallView(props: { events: TaskEvent[] }) {
         const payload = asRecord(event.payload)
 
         return (
-          <article className="tool-event" key={eventKey(event, index)}>
+          <article
+            className="tool-event"
+            key={createToolEventKey(event, index)}
+          >
             <div className="event-meta">
               <span>{event.type}</span>
               <time>{new Date(event.createdAt).toLocaleTimeString()}</time>

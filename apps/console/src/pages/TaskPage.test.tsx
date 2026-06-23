@@ -30,6 +30,7 @@ class FakeEventSource {
 
 function createClient(): RunnerApiClient {
   return {
+    baseUrl: 'http://127.0.0.1:17890',
     getTask: vi.fn(async () => ({
       id: 'task_1',
       workspaceId: 'ws_1',
@@ -88,5 +89,9 @@ describe('task page', () => {
     await waitFor(() => {
       expect(client.approveApproval).toHaveBeenCalledWith('approval_1')
     })
+
+    expect(FakeEventSource.instances[0].url).toBe(
+      'http://127.0.0.1:17890/api/tasks/task_1/events',
+    )
   })
 })

@@ -18,7 +18,7 @@ export function HomePage(props: HomePageProps) {
   const [error, setError] = useState<string | undefined>()
   const [loading, setLoading] = useState(false)
 
-  const load = async () => {
+  const load = async (preferredWorkspaceId?: string) => {
     setLoading(true)
     setError(undefined)
 
@@ -31,8 +31,17 @@ export function HomePage(props: HomePageProps) {
       setWorkspaces(nextWorkspaces)
       setTasks(nextTasks)
 
-      if (!workspaceId && nextWorkspaces[0]) {
+      const preferred = preferredWorkspaceId || workspaceId
+      const preferredExists = nextWorkspaces.some(
+        workspace => workspace.id === preferred,
+      )
+
+      if (preferred && preferredExists) {
+        setWorkspaceId(preferred)
+      } else if (nextWorkspaces[0]) {
         setWorkspaceId(nextWorkspaces[0].id)
+      } else {
+        setWorkspaceId('')
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -62,8 +71,7 @@ export function HomePage(props: HomePageProps) {
 
       setRepoPath('')
       setWorkspaceName('')
-      setWorkspaceId(workspace.id)
-      await load()
+      await load(workspace.id)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -153,7 +161,7 @@ export function HomePage(props: HomePageProps) {
       <section className="panel wide">
         <div className="panel-header">
           <h2>任务列表</h2>
-          <button type="button" onClick={load}>
+          <button type="button" onClick={() => void load()}>
             刷新
           </button>
         </div>
