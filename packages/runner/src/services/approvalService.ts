@@ -44,35 +44,42 @@ export class ApprovalService {
     }
 
     this.db.state.approvals.push(approval)
-    await this.db.save()
 
-    await this.eventService.append({
-      taskId: approval.taskId,
-      type: 'approval.required',
-      payload: {
-        approvalId: approval.id,
-        toolCallId: approval.toolCallId,
-        command: approval.command,
-        cwd: approval.cwd,
-        reason: approval.reason,
-        risk: approval.risk,
-      },
-    })
+    try {
+      await this.db.save()
 
-    await this.auditService.append({
-      taskId: approval.taskId,
-      type: 'approval.required',
-      payload: {
-        approvalId: approval.id,
-        toolCallId: approval.toolCallId,
-        command: approval.command,
-        cwd: approval.cwd,
-        reason: approval.reason,
-        risk: approval.risk,
-      },
-    })
+      await this.eventService.append({
+        taskId: approval.taskId,
+        type: 'approval.required',
+        payload: {
+          approvalId: approval.id,
+          toolCallId: approval.toolCallId,
+          command: approval.command,
+          cwd: approval.cwd,
+          reason: approval.reason,
+          risk: approval.risk,
+        },
+      })
 
-    return approval
+      await this.auditService.append({
+        taskId: approval.taskId,
+        type: 'approval.required',
+        payload: {
+          approvalId: approval.id,
+          toolCallId: approval.toolCallId,
+          command: approval.command,
+          cwd: approval.cwd,
+          reason: approval.reason,
+          risk: approval.risk,
+        },
+      })
+
+      return approval
+    } catch (error) {
+      await this.rollbackCreate(approval.id)
+
+      throw error
+    }
   }
 
   async approve(id: string): Promise<Approval> {
@@ -123,5 +130,17 @@ export class ApprovalService {
     })
 
     return approval
+  }
+
+  private async rollbackCreate(id: string): Promise<void> {
+    this.db.state.approvals = this.db.state.approvals.filter(
+      approval => approval.id !== id,
+    )
+
+    try {
+      await this.db.save()
+    } catch {
+      // Keep the original create() error.
+    }
   }
 }

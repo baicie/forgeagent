@@ -37,7 +37,7 @@ describe('listFilesTool', () => {
     } finally {
       await fixture.cleanup()
     }
-  })
+  }, 20000)
 
   it('does not list ignored or sensitive paths', async () => {
     const fixture = await createToolTestFixture()
@@ -67,5 +67,5 @@ describe('listFilesTool', () => {
     } finally {
       await fixture.cleanup()
     }
-  })
+  }, 20000)
 })

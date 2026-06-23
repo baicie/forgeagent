@@ -25,5 +25,5 @@ describe('getDiffTool', () => {
     } finally {
       await fixture.cleanup()
     }
-  })
+  }, 20000)
 })

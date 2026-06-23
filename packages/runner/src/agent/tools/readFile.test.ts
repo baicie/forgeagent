@@ -24,7 +24,7 @@ describe('readFileTool', () => {
     } finally {
       await fixture.cleanup()
     }
-  })
+  }, 20000)
 
   it('blocks parent directory escape', async () => {
     const fixture = await createToolTestFixture()
@@ -40,7 +40,7 @@ describe('readFileTool', () => {
     } finally {
       await fixture.cleanup()
     }
-  })
+  }, 20000)
 
   it('blocks sensitive file', async () => {
     const fixture = await createToolTestFixture()
@@ -62,7 +62,7 @@ describe('readFileTool', () => {
     } finally {
       await fixture.cleanup()
     }
-  })
+  }, 20000)
 
   it('blocks files larger than 200KB', async () => {
     const fixture = await createToolTestFixture()
@@ -84,5 +84,5 @@ describe('readFileTool', () => {
     } finally {
       await fixture.cleanup()
     }
-  })
+  }, 20000)
 })

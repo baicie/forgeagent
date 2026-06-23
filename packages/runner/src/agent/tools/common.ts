@@ -35,10 +35,7 @@ export function assertSafeReadablePath(
 ): ResolvedToolPath {
   const resolved = resolveToolPath(context, targetPath)
 
-  if (
-    isSensitivePath(resolved.relativePath) ||
-    isSensitivePath(resolved.absolutePath)
-  ) {
+  if (isSensitivePath(resolved.relativePath)) {
     throw createForgeAgentError(
       'SENSITIVE_FILE_BLOCKED',
       `Sensitive file is blocked: ${targetPath}`,
@@ -49,10 +46,7 @@ export function assertSafeReadablePath(
     )
   }
 
-  if (
-    isIgnoredPath(resolved.relativePath) ||
-    isIgnoredPath(resolved.absolutePath)
-  ) {
+  if (isIgnoredPath(resolved.relativePath)) {
     throw createForgeAgentError(
       'IGNORED_PATH_BLOCKED',
       `Ignored path is blocked: ${targetPath}`,

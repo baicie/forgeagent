@@ -1,3 +1,4 @@
+import type { CommandRiskLevel, TaskStatus } from '@forgeagent/core'
 import { classifyCommandRisk, createForgeAgentError } from '@forgeagent/core'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
@@ -15,9 +16,28 @@ export type RunCommandArgs = z.infer<typeof RunCommandArgsSchema>
 export interface RunCommandResult {
   approvalId: string
   status: 'waiting_approval'
-  risk: string
+  risk: CommandRiskLevel
   command: string
   cwd: string
+}
+
+const APPROVAL_ALLOWED_STATUSES: TaskStatus[] = [
+  'created',
+  'preparing',
+  'running',
+  'waiting_approval',
+]
+
+function assertCanRequestCommandApproval(status: TaskStatus): void {
+  if (!APPROVAL_ALLOWED_STATUSES.includes(status)) {
+    throw createForgeAgentError(
+      'TASK_NOT_RUNNING',
+      `Task cannot request command approval from status: ${status}`,
+      {
+        status,
+      },
+    )
+  }
 }
 
 async function ensureWaitingApproval(
@@ -76,12 +96,16 @@ export async function runCommandTool(
   rawArgs: unknown,
 ): Promise<RunCommandResult> {
   const args = RunCommandArgsSchema.parse(rawArgs)
+  const task = context.taskService.get(context.task.id)
+
+  assertCanRequestCommandApproval(task.status)
+
   const cwd = assertSafeReadablePath(context, args.cwd)
   const risk = classifyCommandRisk(args.command)
   const toolCallId = `tool_${randomUUID()}`
 
   const approval = await context.approvalService.create({
-    taskId: context.task.id,
+    taskId: task.id,
     toolCallId,
     command: args.command,
     cwd: cwd.absolutePath,

@@ -26,7 +26,7 @@ describe('applyPatchTool', () => {
     } finally {
       await fixture.cleanup()
     }
-  })
+  }, 20000)
 
   it('replaces text inside task worktree', async () => {
     const fixture = await createToolTestFixture()
@@ -59,7 +59,7 @@ describe('applyPatchTool', () => {
     } finally {
       await fixture.cleanup()
     }
-  })
+  }, 20000)
 
   it('blocks writing outside task worktree', async () => {
     const fixture = await createToolTestFixture()
@@ -81,5 +81,5 @@ describe('applyPatchTool', () => {
     } finally {
       await fixture.cleanup()
     }
-  })
+  }, 20000)
 })

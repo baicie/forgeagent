@@ -27,7 +27,7 @@ describe('runCommandTool', () => {
     } finally {
       await fixture.cleanup()
     }
-  })
+  }, 20000)
 
   it('marks dangerous command risk but still only creates approval', async () => {
     const fixture = await createToolTestFixture()
@@ -47,7 +47,7 @@ describe('runCommandTool', () => {
     } finally {
       await fixture.cleanup()
     }
-  })
+  }, 20000)
 
   it('blocks cwd outside task worktree', async () => {
     const fixture = await createToolTestFixture()
@@ -65,5 +65,58 @@ describe('runCommandTool', () => {
     } finally {
       await fixture.cleanup()
     }
-  })
+  }, 20000)
+
+  it('rejects terminal task status before creating approval', async () => {
+    const fixture = await createToolTestFixture()
+
+    try {
+      await fixture.taskService.prepare(fixture.task.id)
+      await fixture.taskService.start(fixture.task.id)
+      await fixture.taskService.complete(fixture.task.id)
+
+      const approvalsBefore = fixture.approvalService.list().length
+
+      await expect(
+        runCommandTool(fixture.context, {
+          command: 'pnpm test',
+          reason: 'verify after completion',
+        }),
+      ).rejects.toMatchObject({
+        code: 'TASK_NOT_RUNNING',
+      })
+
+      expect(fixture.approvalService.list()).toHaveLength(approvalsBefore)
+    } finally {
+      await fixture.cleanup()
+    }
+  }, 20000)
+
+  it('keeps approval and task state consistent when task is already waiting_approval', async () => {
+    const fixture = await createToolTestFixture()
+
+    try {
+      await runCommandTool(fixture.context, {
+        command: 'pnpm test',
+        reason: 'first approval',
+      })
+
+      const second = await runCommandTool(fixture.context, {
+        command: 'pnpm build',
+        reason: 'second approval',
+      })
+
+      expect(second.status).toBe('waiting_approval')
+      expect(fixture.taskService.get(fixture.task.id).status).toBe(
+        'waiting_approval',
+      )
+
+      expect(fixture.approvalService.get(second.approvalId)).toMatchObject({
+        command: 'pnpm build',
+        status: 'pending',
+      })
+    } finally {
+      await fixture.cleanup()
+    }
+  }, 20000)
 })

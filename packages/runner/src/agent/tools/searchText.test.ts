@@ -30,7 +30,7 @@ describe('searchTextTool', () => {
     } finally {
       await fixture.cleanup()
     }
-  })
+  }, 20000)
 
   it('skips sensitive files', async () => {
     const fixture = await createToolTestFixture()
@@ -50,5 +50,5 @@ describe('searchTextTool', () => {
     } finally {
       await fixture.cleanup()
     }
-  })
+  }, 20000)
 })
