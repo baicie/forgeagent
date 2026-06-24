@@ -117,7 +117,7 @@ describe('runner server', { timeout: 20000 }, () => {
       })
 
       expect(response.statusCode).toBe(400)
-      expect(response.json().error.code).toBe('INVALID_GIT_REPO')
+      expect(response.json().error.code).toBe('WORKSPACE_NOT_GIT_REPOSITORY')
     } finally {
       await app.close()
     }

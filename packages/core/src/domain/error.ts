@@ -2,6 +2,8 @@ import { z } from 'zod'
 
 export const ForgeAgentErrorCodeSchema = z.enum([
   'WORKSPACE_NOT_FOUND',
+  'WORKSPACE_NOT_GIT_REPOSITORY',
+  'WORKSPACE_EMPTY_GIT_REPOSITORY',
   'INVALID_GIT_REPO',
   'PATH_ESCAPE_DETECTED',
   'SENSITIVE_FILE_BLOCKED',

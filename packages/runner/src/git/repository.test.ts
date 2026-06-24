@@ -1,3 +1,4 @@
+import { execSync } from 'node:child_process'
 import { mkdtemp, rm, writeFile, realpath } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -42,13 +43,44 @@ describe('gitRepositoryService', () => {
     }
   })
 
-  it('throws structured error for non-git directory', async () => {
+  it('throws WORKSPACE_NOT_GIT_REPOSITORY for non-git directory with hint', async () => {
     const tempDir = await mkdtemp(join(tmpdir(), 'forgeagent-non-git-'))
     const service = new GitRepositoryService(new GitClient())
 
     try {
       await expect(service.getRepositoryInfo(tempDir)).rejects.toMatchObject({
-        code: 'INVALID_GIT_REPO',
+        code: 'WORKSPACE_NOT_GIT_REPOSITORY',
+        details: {
+          hint: expect.stringContaining('git init'),
+        },
+      })
+    } finally {
+      await rm(tempDir, { recursive: true, force: true })
+    }
+  })
+
+  it('throws WORKSPACE_EMPTY_GIT_REPOSITORY for repo with no commits', async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), 'forgeagent-empty-git-'))
+
+    try {
+      execSync('git init', { cwd: tempDir, stdio: 'ignore' })
+      execSync('git config user.email "test@example.com"', {
+        cwd: tempDir,
+        stdio: 'ignore',
+      })
+      execSync('git config user.name "Test"', {
+        cwd: tempDir,
+        stdio: 'ignore',
+      })
+      await writeFile(join(tempDir, 'placeholder.txt'), 'placeholder\n')
+
+      const service = new GitRepositoryService(new GitClient())
+
+      await expect(service.getRepositoryInfo(tempDir)).rejects.toMatchObject({
+        code: 'WORKSPACE_EMPTY_GIT_REPOSITORY',
+        details: {
+          hint: expect.stringContaining('git commit'),
+        },
       })
     } finally {
       await rm(tempDir, { recursive: true, force: true })

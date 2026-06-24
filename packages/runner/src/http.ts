@@ -14,6 +14,8 @@ export function statusFromErrorCode(code: string): number {
   switch (code) {
     case 'BAD_REQUEST':
     case 'INVALID_GIT_REPO':
+    case 'WORKSPACE_NOT_GIT_REPOSITORY':
+    case 'WORKSPACE_EMPTY_GIT_REPOSITORY':
       return 400
 
     case 'WORKSPACE_NOT_FOUND':
