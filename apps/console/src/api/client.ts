@@ -132,6 +132,18 @@ export class RunnerApiClient {
     })
   }
 
+  async deleteTask(id: string): Promise<void> {
+    await this.request(`/api/tasks/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    })
+  }
+
+  async cleanupTasks(): Promise<{ deleted: number; failed: number }> {
+    return this.request('/api/tasks/cleanup', {
+      method: 'POST',
+    })
+  }
+
   async approveApproval(id: string): Promise<unknown> {
     return this.request(`/api/approvals/${encodeURIComponent(id)}/approve`, {
       method: 'POST',
@@ -183,6 +195,10 @@ export class RunnerApiClient {
         response.status,
         await readErrorPayload(response),
       )
+    }
+
+    if (response.status === 204) {
+      return undefined as T
     }
 
     return (await response.json()) as T

@@ -100,4 +100,18 @@ export function registerTaskRoutes(
   }>('/api/tasks/:id/cancel', async request =>
     context.taskService.cancel(request.params.id),
   )
+
+  app.delete<{
+    Params: { id: string }
+  }>('/api/tasks/:id', async request => {
+    await context.taskService.delete(request.params.id)
+
+    return new Response(null, { status: 204 })
+  })
+
+  app.post('/api/tasks/cleanup', async () => {
+    const result = await context.taskService.deleteAll()
+
+    return result
+  })
 }

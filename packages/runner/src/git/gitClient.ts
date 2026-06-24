@@ -1,3 +1,4 @@
+import type { ForgeAgentErrorCode } from '@forgeagent/core'
 import { createForgeAgentError } from '@forgeagent/core'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -32,6 +33,42 @@ function normalizeOutput(value: unknown): string {
   return ''
 }
 
+function classifyGitFailure(stderr: string): ForgeAgentErrorCode {
+  const lower = stderr.toLowerCase()
+
+  if (
+    lower.includes('not a git repository') ||
+    lower.includes('not a git repo') ||
+    lower.includes('fatal: not a git')
+  ) {
+    return 'WORKSPACE_NOT_GIT_REPOSITORY'
+  }
+
+  if (
+    lower.includes('unknown revision') ||
+    lower.includes('bad revision') ||
+    lower.includes('ambiguous argument') ||
+    lower.includes('needed a single revision') ||
+    lower.includes('does not have any commits yet') ||
+    lower.includes('no commits') ||
+    lower.includes('empty repository')
+  ) {
+    return 'WORKSPACE_EMPTY_GIT_REPOSITORY'
+  }
+
+  if (
+    lower.includes('no such reference') ||
+    lower.includes('not a working tree') ||
+    lower.includes('is not a working tree') ||
+    (lower.includes('worktree') &&
+      (lower.includes('not found') || lower.includes('does not exist')))
+  ) {
+    return 'GIT_WORKTREE_NOT_FOUND'
+  }
+
+  return 'INVALID_GIT_REPO'
+}
+
 export class GitClient {
   async run(
     args: string[],
@@ -53,10 +90,11 @@ export class GitClient {
       const gitError = error as ExecFileError
       const stderr = normalizeOutput(gitError.stderr)
       const stdout = normalizeOutput(gitError.stdout)
+      const code = classifyGitFailure(stderr)
       const message = stderr.trim() || gitError.message
 
       throw createForgeAgentError(
-        'INVALID_GIT_REPO',
+        code,
         `Git command failed: git ${args.join(' ')}`,
         {
           cwd: options.cwd,

@@ -1,4 +1,4 @@
-import { rm, writeFile } from 'node:fs/promises'
+import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { GitDiffService } from './diff'
 import { GitClient } from './gitClient'
@@ -47,6 +47,51 @@ describe('gitDiffService', () => {
       expect(diff).toContain('delete-me.txt')
       expect(diff).toContain('new file mode')
       expect(diff).toContain('deleted file mode')
+    } finally {
+      await fixture.cleanup()
+    }
+  })
+
+  it('skips node_modules and other ignored directories when generating diff', async () => {
+    const fixture = await createGitFixture()
+
+    try {
+      const gitClient = new GitClient()
+      const worktreeService = new GitWorktreeService(gitClient)
+      const diffService = new GitDiffService(gitClient)
+
+      const worktree = await worktreeService.create({
+        gitRoot: fixture.repoPath,
+        taskId: 'task_diff_ignore',
+        dataDir: join(fixture.tempDir, '.forgeagent'),
+      })
+
+      await mkdir(join(worktree.worktreePath, 'node_modules', 'some-package'), {
+        recursive: true,
+      })
+      await writeFile(
+        join(worktree.worktreePath, 'node_modules', 'some-package', 'index.js'),
+        '// huge file\n'.repeat(1000),
+        'utf-8',
+      )
+      await mkdir(join(worktree.worktreePath, 'dist'), { recursive: true })
+      await writeFile(
+        join(worktree.worktreePath, 'dist', 'bundle.js'),
+        '// bundled\n'.repeat(100),
+        'utf-8',
+      )
+      await mkdir(join(worktree.worktreePath, 'src'), { recursive: true })
+      await writeFile(
+        join(worktree.worktreePath, 'src', 'app.ts'),
+        'export const x = 1;\n',
+        'utf-8',
+      )
+
+      const diff = await diffService.getDiff(worktree.worktreePath)
+
+      expect(diff).toContain('src/app.ts')
+      expect(diff).not.toContain('node_modules')
+      expect(diff).not.toContain('dist/bundle.js')
     } finally {
       await fixture.cleanup()
     }

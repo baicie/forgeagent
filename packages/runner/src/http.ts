@@ -16,6 +16,8 @@ export function statusFromErrorCode(code: string): number {
     case 'INVALID_GIT_REPO':
     case 'WORKSPACE_NOT_GIT_REPOSITORY':
     case 'WORKSPACE_EMPTY_GIT_REPOSITORY':
+    case 'GIT_WORKTREE_NOT_FOUND':
+    case 'GIT_NO_COMMIT':
       return 400
 
     case 'WORKSPACE_NOT_FOUND':

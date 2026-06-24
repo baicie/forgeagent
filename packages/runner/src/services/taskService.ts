@@ -407,6 +407,54 @@ export class TaskService {
     return this.transition(id, 'cancelled', 'Task cancelled')
   }
 
+  async delete(id: string): Promise<void> {
+    const task = this.get(id)
+
+    try {
+      await this.gitWorktreeService.discard(
+        this.workspaceService.get(task.workspaceId).gitRoot,
+        task.worktreePath,
+        task.id,
+      )
+    } catch {
+      // Best-effort: worktree may not exist
+    }
+
+    this.db.state.tasks = this.db.state.tasks.filter(t => t.id !== id)
+    this.db.state.events = this.db.state.events.filter(e => e.taskId !== id)
+    this.db.state.audits = this.db.state.audits.filter(a => a.taskId !== id)
+    this.db.state.approvals = this.db.state.approvals.filter(a => a.taskId !== id)
+
+    await this.db.save()
+
+    await this.auditService.append({
+      taskId: id,
+      type: 'task.deleted',
+      payload: {
+        workspaceId: task.workspaceId,
+        worktreePath: task.worktreePath,
+        previousStatus: task.status,
+      },
+    })
+  }
+
+  async deleteAll(): Promise<{ deleted: number; failed: number }> {
+    const tasks = this.list()
+    let deleted = 0
+    let failed = 0
+
+    for (const task of tasks) {
+      try {
+        await this.delete(task.id)
+        deleted++
+      } catch {
+        failed++
+      }
+    }
+
+    return { deleted, failed }
+  }
+
   private assertCanDeliver(task: Task, status: 'applied' | 'committed'): void {
     if (!canTransitionTaskStatus(task.status, status)) {
       throw createForgeAgentError(

@@ -139,6 +139,17 @@ export function TaskPage(props: TaskPageProps) {
     })
   }
 
+  const deleteTask = async () => {
+    if (!window.confirm('确定要彻底删除这个任务吗？\n\n这将删除 worktree 和所有关联记录，无法撤销。')) {
+      return
+    }
+
+    await runAction(async () => {
+      await props.client.deleteTask(props.taskId)
+      props.onBack()
+    })
+  }
+
   return (
     <div className="task-page">
       <div className="task-header">
@@ -179,6 +190,14 @@ export function TaskPage(props: TaskPageProps) {
         </button>
         <button disabled={busy} type="button" onClick={cancel}>
           Cancel
+        </button>
+        <button
+          disabled={busy}
+          type="button"
+          onClick={deleteTask}
+          className="btn-danger"
+        >
+          删除任务
         </button>
       </div>
 

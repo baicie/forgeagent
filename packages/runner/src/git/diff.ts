@@ -13,6 +13,24 @@ function parseGitLines(output: string): string[] {
     .filter(Boolean)
 }
 
+const IGNORED_DIRS_FOR_DIFF = new Set([
+  'node_modules',
+  'dist',
+  'build',
+  'coverage',
+  '.next',
+  '.nuxt',
+  '.turbo',
+  '.cache',
+])
+
+function filterIgnoredPaths(paths: string[]): string[] {
+  return paths.filter(p => {
+    const parts = p.split('/')
+    return !parts.some(part => IGNORED_DIRS_FOR_DIFF.has(part))
+  })
+}
+
 export class GitDiffService {
   constructor(private readonly gitClient: GitClient) {}
 
@@ -42,7 +60,7 @@ export class GitDiffService {
       },
     )
 
-    const files = parseGitLines(output)
+    const files = filterIgnoredPaths(parseGitLines(output))
 
     if (files.length === 0) {
       return

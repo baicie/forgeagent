@@ -3,6 +3,7 @@ import { z } from 'zod'
 export const AuditEventTypeSchema = z.enum([
   'task.created',
   'task.status_changed',
+  'task.deleted',
   'tool.started',
   'tool.finished',
   'approval.required',

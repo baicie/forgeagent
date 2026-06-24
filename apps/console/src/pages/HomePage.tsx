@@ -17,6 +17,7 @@ export function HomePage(props: HomePageProps) {
   const [prompt, setPrompt] = useState('')
   const [error, setError] = useState<string | undefined>()
   const [loading, setLoading] = useState(false)
+  const [cleaningUp, setCleaningUp] = useState(false)
 
   const load = async (preferredWorkspaceId?: string) => {
     setLoading(true)
@@ -108,6 +109,34 @@ export function HomePage(props: HomePageProps) {
     }
   }
 
+  const cleanupAll = async () => {
+    if (tasks.length === 0) return
+    if (
+      !window.confirm(
+        `确定要删除所有 ${tasks.length} 个任务吗？\n\n这将删除所有 worktree 和关联记录，无法撤销。`,
+      )
+    ) {
+      return
+    }
+
+    setCleaningUp(true)
+    setError(undefined)
+
+    try {
+      const result = await props.client.cleanupTasks()
+
+      if (result.failed > 0) {
+        setError(`删除了 ${result.deleted} 个任务，${result.failed} 个失败`)
+      }
+
+      await load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setCleaningUp(false)
+    }
+  }
+
   return (
     <div className="page-grid">
       <section className="panel">
@@ -161,9 +190,21 @@ export function HomePage(props: HomePageProps) {
       <section className="panel wide">
         <div className="panel-header">
           <h2>任务列表</h2>
-          <button type="button" onClick={() => void load()}>
-            刷新
-          </button>
+          <div className="panel-header-actions">
+            <button type="button" onClick={() => void load()}>
+              刷新
+            </button>
+            {tasks.length > 0 ? (
+              <button
+                type="button"
+                onClick={cleanupAll}
+                disabled={cleaningUp}
+                className="btn-danger"
+              >
+                {cleaningUp ? '清理中...' : `一键清理 (${tasks.length})`}
+              </button>
+            ) : null}
+          </div>
         </div>
 
         {error ? <div className="error">{error}</div> : null}

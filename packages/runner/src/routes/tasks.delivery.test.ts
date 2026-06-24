@@ -443,4 +443,94 @@ describe('task delivery routes', { timeout: 20000 }, () => {
       await fixture.cleanup()
     }
   })
+
+  it('deletes task, worktree, and all associated records', async () => {
+    const fixture = await createServerFixture()
+
+    try {
+      const task = await fixture.createTask('delete me')
+
+      await writeFile(
+        join(task.worktreePath, 'README.md'),
+        '# Will be deleted\n',
+        'utf-8',
+      )
+
+      const listBefore = await fixture.app.inject({
+        method: 'GET',
+        url: '/api/tasks',
+      })
+      expect((listBefore.json() as { items: unknown[] }).items).toHaveLength(1)
+
+      const deleteResponse = await fixture.app.inject({
+        method: 'DELETE',
+        url: `/api/tasks/${task.id}`,
+      })
+
+      expect(deleteResponse.statusCode).toBe(204)
+
+      const listAfter = await fixture.app.inject({
+        method: 'GET',
+        url: '/api/tasks',
+      })
+      expect((listAfter.json() as { items: unknown[] }).items).toHaveLength(0)
+
+      await expect(access(task.worktreePath)).rejects.toThrow()
+
+      const getResponse = await fixture.app.inject({
+        method: 'GET',
+        url: `/api/tasks/${task.id}`,
+      })
+      expect(getResponse.statusCode).toBe(404)
+    } finally {
+      await fixture.cleanup()
+    }
+  })
+
+  it('returns 404 when deleting non-existent task', async () => {
+    const fixture = await createServerFixture()
+
+    try {
+      const response = await fixture.app.inject({
+        method: 'DELETE',
+        url: '/api/tasks/task_does_not_exist',
+      })
+
+      expect(response.statusCode).toBe(404)
+    } finally {
+      await fixture.cleanup()
+    }
+  })
+
+  it('deletes all tasks and their worktrees', async () => {
+    const fixture = await createServerFixture()
+
+    try {
+      await fixture.createTask('delete all 1')
+      await fixture.createTask('delete all 2')
+      await fixture.createTask('delete all 3')
+
+      const listBefore = await fixture.app.inject({
+        method: 'GET',
+        url: '/api/tasks',
+      })
+      expect((listBefore.json() as { items: unknown[] }).items).toHaveLength(3)
+
+      const cleanupResponse = await fixture.app.inject({
+        method: 'POST',
+        url: '/api/tasks/cleanup',
+      })
+
+      expect(cleanupResponse.statusCode).toBe(200)
+      expect(cleanupResponse.json()).toEqual({ deleted: 3, failed: 0 })
+
+      const listAfter = await fixture.app.inject({
+        method: 'GET',
+        url: '/api/tasks',
+      })
+      expect((listAfter.json() as { items: unknown[] }).items).toHaveLength(0)
+    } finally {
+      await fixture.cleanup()
+    }
+  })
 })
