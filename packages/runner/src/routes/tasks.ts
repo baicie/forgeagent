@@ -103,10 +103,10 @@ export function registerTaskRoutes(
 
   app.delete<{
     Params: { id: string }
-  }>('/api/tasks/:id', async request => {
+  }>('/api/tasks/:id', async (request, reply) => {
     await context.taskService.delete(request.params.id)
 
-    return new Response(null, { status: 204 })
+    return reply.status(204).send()
   })
 
   app.post('/api/tasks/cleanup', async () => {

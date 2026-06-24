@@ -79,6 +79,30 @@ export function createTaskCommand(
     })
 
   command
+    .command('cleanup')
+    .description('Delete all task worktrees and task records')
+    .option('--yes', 'Skip confirmation')
+    .action(async (actionOptions: { yes?: boolean }) => {
+      const client = clientFactory()
+
+      if (!actionOptions.yes) {
+        console.log(
+          pc.yellow(
+            'This will delete all task worktrees and task records managed by ForgeAgent.',
+          ),
+        )
+        console.log(pc.dim('Re-run with --yes to confirm.'))
+        return
+      }
+
+      const result = await client.cleanupTasks()
+
+      console.log(pc.green('Task cleanup completed'))
+      console.log(`  deleted: ${result.deleted}`)
+      console.log(`  failed: ${result.failed}`)
+    })
+
+  command
     .command('watch')
     .description('Watch task events through SSE')
     .argument('<taskId>', 'Task id')

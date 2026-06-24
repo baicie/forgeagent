@@ -183,6 +183,16 @@ forgeagent task commit <taskId> --message "feat: update readme"
 forgeagent task discard <taskId>
 ```
 
+### 8. 清理所有任务
+
+长期使用后可以一键清理所有 task worktree 和记录：
+
+```bash
+forgeagent task cleanup --yes
+```
+
+不传 `--yes` 会打印确认提示，不会真的执行。
+
 ## apply / commit / discard 的区别
 
 ```txt
@@ -210,6 +220,22 @@ ForgeAgent 不会让 Agent 直接修改你的原仓库。
 ```
 
 Agent 只在这个目录里读写文件。你确认 diff 后，再选择 apply / commit / discard。
+
+## 磁盘空间不足
+
+每个 task 都会创建一个隔离 worktree。Runner 默认要求 dataDir 所在磁盘至少有 `2GB`（`FORGEAGENT_MIN_FREE_DISK`）可用空间，否则创建 task 时会报 `DISK_SPACE_LOW` 并提示清理。
+
+清理所有 task worktree 和记录：
+
+```bash
+forgeagent task cleanup --yes
+```
+
+只清理某个任务：
+
+```bash
+forgeagent task discard <taskId>
+```
 
 ## 开发命令
 
@@ -245,6 +271,7 @@ forgeagent task apply <taskId>
 forgeagent task commit <taskId> --message "..."
 forgeagent task discard <taskId>
 forgeagent task cancel <taskId>
+forgeagent task cleanup --yes
 ```
 
 ## 项目结构

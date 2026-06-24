@@ -57,6 +57,10 @@ function createClient(): RunnerApiClient {
       createdAt: '2026-06-24T00:00:00.000Z',
       updatedAt: '2026-06-24T00:00:00.000Z',
     })),
+    cleanupTasks: vi.fn(async () => ({
+      deleted: 0,
+      failed: 0,
+    })),
   } as unknown as RunnerApiClient
 }
 
@@ -112,5 +116,25 @@ describe('task command phase 12', () => {
       'Patch applied to original repository',
     )
     expect(client.getWorkspace).toHaveBeenCalledWith('ws_1')
+  })
+
+  it('does not cleanup tasks without confirmation', async () => {
+    const client = createClient()
+    const program = createProgram(createTaskCommand(() => client))
+
+    await program.parseAsync(['node', 'test', 'task', 'cleanup'])
+
+    expect(client.cleanupTasks).not.toHaveBeenCalled()
+    expect(logSpy.mock.calls.flat().join('\n')).toContain('Re-run with --yes')
+  })
+
+  it('cleans up tasks with confirmation', async () => {
+    const client = createClient()
+    const program = createProgram(createTaskCommand(() => client))
+
+    await program.parseAsync(['node', 'test', 'task', 'cleanup', '--yes'])
+
+    expect(client.cleanupTasks).toHaveBeenCalled()
+    expect(logSpy.mock.calls.flat().join('\n')).toContain('deleted: 0')
   })
 })

@@ -269,4 +269,35 @@ describe('runner api client', () => {
       expect.anything(),
     )
   })
+
+  it('cleans up tasks through runner api', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers({
+        'content-type': 'application/json',
+      }),
+      json: async () => ({
+        deleted: 2,
+        failed: 0,
+      }),
+    }))
+
+    vi.stubGlobal('fetch', fetchMock)
+
+    const client = new RunnerApiClient('http://127.0.0.1:17890')
+    const result = await client.cleanupTasks()
+
+    expect(result).toEqual({
+      deleted: 2,
+      failed: 0,
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://127.0.0.1:17890/api/tasks/cleanup',
+      expect.objectContaining({
+        method: 'POST',
+      }),
+    )
+  })
 })

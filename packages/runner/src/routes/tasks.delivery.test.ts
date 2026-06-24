@@ -468,6 +468,7 @@ describe('task delivery routes', { timeout: 20000 }, () => {
       })
 
       expect(deleteResponse.statusCode).toBe(204)
+      expect(deleteResponse.body).toBe('')
 
       const listAfter = await fixture.app.inject({
         method: 'GET',

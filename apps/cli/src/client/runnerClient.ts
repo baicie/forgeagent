@@ -22,6 +22,11 @@ export interface CommitTaskInput {
   message?: string
 }
 
+export interface CleanupTasksResult {
+  deleted: number
+  failed: number
+}
+
 export class RunnerApiError extends Error {
   readonly code: string
   readonly details?: unknown
@@ -198,6 +203,12 @@ export class RunnerApiClient {
 
   async cancelTask(id: string): Promise<Task> {
     return this.request(`/api/tasks/${encodeURIComponent(id)}/cancel`, {
+      method: 'POST',
+    })
+  }
+
+  async cleanupTasks(): Promise<CleanupTasksResult> {
+    return this.request('/api/tasks/cleanup', {
       method: 'POST',
     })
   }

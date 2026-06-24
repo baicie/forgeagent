@@ -9,6 +9,10 @@ import { createJsonFileRunnerDb } from './db'
 import type { RunnerDb } from './db'
 import { registerErrorHandler } from './http'
 import {
+  loadModelGatewayConfigFromEnv,
+  validateModelGatewayConfig,
+} from './agent/model'
+import {
   registerApprovalRoutes,
   registerEventRoutes,
   registerHealthRoutes,
@@ -24,6 +28,11 @@ export interface CreateRunnerServerOptions extends LoadRunnerConfigOptions {
   config?: RunnerConfig
   db?: RunnerDb
   logger?: boolean
+  /**
+   * Tests may create an in-memory server without requiring a real model config.
+   * Production startRunnerServer() validates model config by default.
+   */
+  skipModelConfigValidation?: boolean
 }
 
 export async function createRunnerServer(
@@ -61,11 +70,22 @@ function isAddressInUse(error: unknown): boolean {
   )
 }
 
+export function validateRunnerStartupConfig(): void {
+  validateModelGatewayConfig(loadModelGatewayConfigFromEnv())
+}
+
 export async function startRunnerServer(
   options: CreateRunnerServerOptions = {},
 ): Promise<RunnerServerInstance> {
-  const app = await createRunnerServer(options)
+  if (!options.skipModelConfigValidation) {
+    validateRunnerStartupConfig()
+  }
+
   const config = options.config || loadRunnerConfig(options)
+  const app = await createRunnerServer({
+    ...options,
+    config,
+  })
 
   try {
     await app.listen({
