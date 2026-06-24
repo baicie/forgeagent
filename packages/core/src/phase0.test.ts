@@ -69,8 +69,8 @@ describe('repository identity', () => {
 
     expect(readme).toContain('# ForgeAgent OS')
     expect(readme).toContain('Local-first Coding Agent + Web Console Lite')
-    expect(readme).toContain('pnpm --filter @forgeagent/cli dev')
-    expect(readme).toContain('forgeagent chat')
+    expect(readme).toContain('forgeagent runner start')
+    expect(readme).toContain('forgeagent task create')
     expect(readme).not.toContain('# Universal Agent\n')
     expect(readme).not.toContain('pnpm --filter @agent/cli dev')
     expect(readme).not.toContain('universal-agent/')

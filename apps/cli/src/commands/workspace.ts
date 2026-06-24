@@ -24,6 +24,12 @@ export function createWorkspaceCommand(
 
       console.log(pc.green('Workspace added'))
       console.log(formatWorkspace(workspace))
+      console.log('')
+      console.log(
+        pc.dim(
+          'This workspace must be a Git repository with at least one commit.',
+        ),
+      )
     })
 
   command
@@ -36,6 +42,9 @@ export function createWorkspaceCommand(
 
       if (workspaces.length === 0) {
         console.log(pc.dim('No workspaces found.'))
+        console.log(
+          pc.dim('Add one: forgeagent workspace add /path/to/git-repo'),
+        )
         return
       }
 

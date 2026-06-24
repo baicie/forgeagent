@@ -33,6 +33,42 @@ export function formatTask(task: Task): string {
   ].join('\n')
 }
 
+export function formatTaskCreatedHint(task: Task): string {
+  return [
+    pc.dim('Next:'),
+    pc.dim(`  forgeagent task run ${task.id}`),
+    pc.dim(`  forgeagent task watch ${task.id}`),
+    pc.dim(`  forgeagent task diff ${task.id}`),
+  ].join('\n')
+}
+
+export function formatTaskCompletedHint(taskId: string): string {
+  return [
+    pc.green('Task completed.'),
+    pc.yellow('Changes are in the isolated task worktree.'),
+    pc.yellow('The original repository has not changed yet.'),
+    '',
+    pc.dim('Next:'),
+    pc.dim(`  forgeagent task diff ${taskId}`),
+    pc.dim(`  forgeagent task apply ${taskId}`),
+    pc.dim(`  forgeagent task commit ${taskId} --message "..."`),
+    pc.dim(`  forgeagent task discard ${taskId}`),
+  ].join('\n')
+}
+
+export function formatTaskAppliedHint(workspace: Workspace): string {
+  return [
+    pc.green('Patch applied to original repository.'),
+    `  repo: ${workspace.gitRoot}`,
+    '',
+    pc.dim('Next:'),
+    pc.dim(`  cd ${workspace.gitRoot}`),
+    pc.dim('  git diff'),
+    pc.dim('  git add .'),
+    pc.dim('  git commit -m "..."'),
+  ].join('\n')
+}
+
 export function formatTaskEvent(event: TaskEvent): string {
   const payload = asRecord(event.payload)
   const time = new Date(event.createdAt).toLocaleTimeString()
@@ -91,7 +127,7 @@ export function formatTaskEvent(event: TaskEvent): string {
       )} bytes=${String(payload.bytes)}`
 
     case 'task.completed':
-      return `${pc.dim(time)} ${pc.green('task completed')}`
+      return `${pc.dim(time)} ${formatTaskCompletedHint(event.taskId)}`
 
     case 'task.failed':
       return `${pc.dim(time)} ${pc.red('task failed')} ${JSON.stringify(

@@ -50,6 +50,56 @@ export interface OpenAICompatibleChatResponse {
   choices?: OpenAICompatibleChatChoice[]
 }
 
+function isLocalModelBaseUrl(baseUrl: string): boolean {
+  try {
+    const url = new URL(baseUrl)
+
+    return ['localhost', '127.0.0.1', '::1'].includes(url.hostname)
+  } catch {
+    return false
+  }
+}
+
+export function validateModelGatewayConfig(
+  config: ModelGatewayConfig,
+): ModelGatewayConfig {
+  if (!config.baseUrl || !config.baseUrl.trim()) {
+    throw createForgeAgentError(
+      'MODEL_CONFIG_MISSING',
+      'Model base URL is missing',
+      {
+        env: 'FORGEAGENT_MODEL_BASE_URL',
+        hint: 'Set FORGEAGENT_MODEL_BASE_URL, for example http://localhost:11434/v1 or https://api.openai.com/v1.',
+      },
+    )
+  }
+
+  if (!config.model || !config.model.trim()) {
+    throw createForgeAgentError(
+      'MODEL_CONFIG_MISSING',
+      'Model name is missing',
+      {
+        env: 'FORGEAGENT_MODEL_NAME',
+        hint: 'Set FORGEAGENT_MODEL_NAME, for example qwen2.5-coder or gpt-4.1-mini.',
+      },
+    )
+  }
+
+  if (!config.apiKey && !isLocalModelBaseUrl(config.baseUrl)) {
+    throw createForgeAgentError(
+      'MODEL_CONFIG_MISSING',
+      'Model API key is missing',
+      {
+        env: 'FORGEAGENT_MODEL_API_KEY',
+        baseUrl: config.baseUrl,
+        hint: 'Set FORGEAGENT_MODEL_API_KEY. For local Ollama-compatible endpoints, use a localhost base URL.',
+      },
+    )
+  }
+
+  return config
+}
+
 export function loadModelGatewayConfigFromEnv(): ModelGatewayConfig {
   return {
     baseUrl:

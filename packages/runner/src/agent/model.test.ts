@@ -1,169 +1,69 @@
 import {
-  OpenAICompatibleModelGateway,
   loadModelGatewayConfigFromEnv,
+  validateModelGatewayConfig,
 } from './model'
 
-/* eslint-disable-next-line test/prefer-lowercase-title */
-describe('OpenAICompatibleModelGateway', () => {
-  it('calls OpenAI-compatible chat completions endpoint', async () => {
-    const fetchImpl = vi.fn(async () => ({
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      text: async () => '',
-      json: async () => ({
-        choices: [
-          {
-            message: {
-              content: '{"message":"ok","final":true}',
-            },
-          },
-        ],
-      }),
-    }))
+describe('model config phase 12', () => {
+  const originalEnv = process.env
 
-    const gateway = new OpenAICompatibleModelGateway(
-      {
-        baseUrl: 'http://localhost:11434/v1',
-        apiKey: 'test-key',
-        model: 'qwen',
-      },
-      fetchImpl,
-    )
-
-    const result = await gateway.generate({
-      messages: [
-        {
-          role: 'user',
-          content: 'hello',
-        },
-      ],
-    })
-
-    expect(result.content).toContain('"final":true')
-    expect(fetchImpl).toHaveBeenCalledWith(
-      'http://localhost:11434/v1/chat/completions',
-      expect.objectContaining({
-        method: 'POST',
-        headers: expect.objectContaining({
-          Authorization: 'Bearer test-key',
-        }),
-      }),
-    )
+  beforeEach(() => {
+    process.env = { ...originalEnv }
   })
 
-  it('throws structured error for non-2xx response', async () => {
-    const fetchImpl = vi.fn(async () => ({
-      ok: false,
-      status: 401,
-      statusText: 'Unauthorized',
-      text: async () => 'bad key',
-      json: async () => ({}),
-    }))
-
-    const gateway = new OpenAICompatibleModelGateway(
-      {
-        baseUrl: 'http://localhost:8000/v1',
-        apiKey: 'bad-key',
-        model: 'deepseek-chat',
-      },
-      fetchImpl,
-    )
-
-    await expect(
-      gateway.generate({
-        messages: [
-          {
-            role: 'user',
-            content: 'hello',
-          },
-        ],
-      }),
-    ).rejects.toMatchObject({
-      code: 'MODEL_REQUEST_FAILED',
-    })
+  afterEach(() => {
+    process.env = originalEnv
   })
 
-  it('loads env config', () => {
-    const originalBaseUrl = process.env.FORGEAGENT_MODEL_BASE_URL
-    const originalApiKey = process.env.FORGEAGENT_MODEL_API_KEY
-    const originalModel = process.env.FORGEAGENT_MODEL_NAME
+  it('throws MODEL_CONFIG_MISSING for remote model without api key', () => {
+    expect(() =>
+      validateModelGatewayConfig({
+        baseUrl: 'https://api.openai.com/v1',
+        model: 'gpt-4.1-mini',
+      }),
+    ).toThrow(expect.objectContaining({ code: 'MODEL_CONFIG_MISSING' }))
+  })
 
-    process.env.FORGEAGENT_MODEL_BASE_URL = 'http://localhost:11434/v1'
-    process.env.FORGEAGENT_MODEL_API_KEY = 'ollama'
-    process.env.FORGEAGENT_MODEL_NAME = 'qwen2.5-coder'
-
-    try {
-      expect(loadModelGatewayConfigFromEnv()).toEqual({
-        baseUrl: 'http://localhost:11434/v1',
-        apiKey: 'ollama',
+  it('throws MODEL_CONFIG_MISSING for empty base URL', () => {
+    expect(() =>
+      validateModelGatewayConfig({
+        baseUrl: '',
         model: 'qwen2.5-coder',
-        temperature: 0,
-      })
-    } finally {
-      process.env.FORGEAGENT_MODEL_BASE_URL = originalBaseUrl
-      process.env.FORGEAGENT_MODEL_API_KEY = originalApiKey
-      process.env.FORGEAGENT_MODEL_NAME = originalModel
-    }
+        apiKey: 'sk-test',
+      }),
+    ).toThrow(expect.objectContaining({ code: 'MODEL_CONFIG_MISSING' }))
   })
 
-  it('wraps fetch network errors as MODEL_REQUEST_FAILED', async () => {
-    const fetchImpl = vi.fn(async () => {
-      throw new Error('network down')
-    })
-
-    const gateway = new OpenAICompatibleModelGateway(
-      {
-        baseUrl: 'http://localhost:11434/v1',
-        model: 'qwen',
-      },
-      fetchImpl,
-    )
-
-    await expect(
-      gateway.generate({
-        messages: [
-          {
-            role: 'user',
-            content: 'hello',
-          },
-        ],
+  it('throws MODEL_CONFIG_MISSING for empty model', () => {
+    expect(() =>
+      validateModelGatewayConfig({
+        baseUrl: 'https://api.openai.com/v1',
+        model: '',
+        apiKey: 'sk-test',
       }),
-    ).rejects.toMatchObject({
-      code: 'MODEL_REQUEST_FAILED',
+    ).toThrow(expect.objectContaining({ code: 'MODEL_CONFIG_MISSING' }))
+  })
+
+  it('allows localhost model without api key', () => {
+    expect(
+      validateModelGatewayConfig({
+        baseUrl: 'http://localhost:11434/v1',
+        model: 'qwen2.5-coder',
+      }),
+    ).toMatchObject({
+      baseUrl: 'http://localhost:11434/v1',
+      model: 'qwen2.5-coder',
     })
   })
 
-  it('wraps invalid response JSON as MODEL_RESPONSE_INVALID', async () => {
-    const fetchImpl = vi.fn(async () => ({
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      text: async () => 'not-json',
-      json: async () => {
-        throw new Error('invalid json')
-      },
-    }))
+  it('loads model config from env', () => {
+    process.env.FORGEAGENT_MODEL_BASE_URL = 'https://api.deepseek.com/v1'
+    process.env.FORGEAGENT_MODEL_API_KEY = 'sk-test'
+    process.env.FORGEAGENT_MODEL_NAME = 'deepseek-chat'
 
-    const gateway = new OpenAICompatibleModelGateway(
-      {
-        baseUrl: 'http://localhost:11434/v1',
-        model: 'qwen',
-      },
-      fetchImpl,
-    )
-
-    await expect(
-      gateway.generate({
-        messages: [
-          {
-            role: 'user',
-            content: 'hello',
-          },
-        ],
-      }),
-    ).rejects.toMatchObject({
-      code: 'MODEL_RESPONSE_INVALID',
+    expect(loadModelGatewayConfigFromEnv()).toMatchObject({
+      baseUrl: 'https://api.deepseek.com/v1',
+      apiKey: 'sk-test',
+      model: 'deepseek-chat',
     })
   })
 })

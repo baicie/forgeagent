@@ -107,6 +107,20 @@ async function readSuccessPayload<T>(response: Response): Promise<T> {
   }
 }
 
+function createRunnerUnavailableError(baseUrl: string, error: unknown) {
+  return new RunnerApiError(0, {
+    error: {
+      code: 'RUNNER_UNAVAILABLE',
+      message: `Runner is not available at ${baseUrl}`,
+      details: {
+        baseUrl,
+        cause: error instanceof Error ? error.message : String(error),
+        hint: 'Start the runner first: forgeagent runner start',
+      },
+    },
+  })
+}
+
 export class RunnerApiClient {
   readonly baseUrl: string
 
@@ -123,6 +137,10 @@ export class RunnerApiClient {
       await this.request<ListResponse<Workspace>>('/api/workspaces')
 
     return response.items
+  }
+
+  async getWorkspace(id: string): Promise<Workspace> {
+    return this.request(`/api/workspaces/${encodeURIComponent(id)}`)
   }
 
   async createWorkspace(input: CreateWorkspaceInput): Promise<Workspace> {
@@ -220,12 +238,7 @@ export class RunnerApiClient {
           options.body === undefined ? undefined : JSON.stringify(options.body),
       })
     } catch (error) {
-      throw new RunnerApiError(0, {
-        error: {
-          code: 'NETWORK_ERROR',
-          message: error instanceof Error ? error.message : String(error),
-        },
-      })
+      throw createRunnerUnavailableError(this.baseUrl, error)
     }
 
     if (!response.ok) {

@@ -108,6 +108,36 @@ pre {
   padding: 10px;
 }
 
+.notice {
+  border: 1px solid #f2d16b;
+  background: #fff8db;
+  color: #5c4500;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 8px 0;
+  line-height: 1.5;
+}
+
+.meta-list {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  gap: 8px 12px;
+  margin: 0;
+}
+
+.meta-list dt {
+  font-weight: 600;
+  color: #555;
+}
+
+.meta-list dd {
+  margin: 0;
+  word-break: break-all;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+    monospace;
+}
+
 .page-grid,
 .task-layout {
   display: grid;

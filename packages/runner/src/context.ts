@@ -20,6 +20,7 @@ import { AuditService } from './services/auditService'
 import { EventService } from './services/eventService'
 import { TaskService } from './services/taskService'
 import { WorkspaceService } from './services/workspaceService'
+import { DiskSpaceService } from './storage/disk'
 
 export interface RunnerContext {
   config: RunnerConfig
@@ -33,6 +34,7 @@ export interface RunnerContext {
   gitDiffService: GitDiffService
   gitPatchService: GitPatchService
   gitCommitService: GitCommitService
+  diskSpaceService: DiskSpaceService
   shellExecutor: ShellExecutor
   commandPolicy: CommandPolicy
   approvalGate: ApprovalGate
@@ -54,6 +56,7 @@ export function createRunnerContext(
   const gitDiffService = new GitDiffService(gitClient)
   const gitPatchService = new GitPatchService(gitClient, gitDiffService)
   const gitCommitService = new GitCommitService(gitClient, gitDiffService)
+  const diskSpaceService = new DiskSpaceService()
 
   const shellExecutor = new ShellExecutor()
   const commandPolicy = new CommandPolicy()
@@ -73,6 +76,7 @@ export function createRunnerContext(
     eventService,
     auditService,
     gitWorkspaceSnapshotService,
+    diskSpaceService,
   )
 
   const approvalService = new ApprovalService(db, eventService, auditService)
@@ -102,6 +106,7 @@ export function createRunnerContext(
     gitDiffService,
     gitPatchService,
     gitCommitService,
+    diskSpaceService,
     shellExecutor,
     commandPolicy,
     approvalGate,

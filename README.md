@@ -27,18 +27,35 @@ MVP 要跑通的最小闭环：
 
 ## 当前状态
 
-当前仓库处于 Phase 0：项目身份与模板收敛。
-
-本阶段只做：
+当前仓库处于 MVP 阶段，已经跑通最小闭环：
 
 ```txt
-universal-agent → ForgeAgent
-@agent/core     → @forgeagent/core
-@agent/cli      → @forgeagent/cli
-agent           → forgeagent
+Local Runner + Web Console Lite + CLI
 ```
 
-Runner、Web Console、worktree、审批、diff 等能力会在后续 Phase 中逐步实现。
+最小闭环：
+
+```txt
+1. forgeagent runner start
+2. 选择本地 Git 仓库
+3. 输入任务
+4. Agent 创建隔离 git worktree
+5. Agent 搜索 / 读取代码
+6. Agent 请求执行命令
+7. 用户审批命令
+8. Agent 修改 worktree 文件
+9. 展示 diff
+10. 用户 apply / commit / discard
+```
+
+详细规范见：
+
+- [AGENTS.md](./AGENTS.md)
+- [docs/roadmap.md](./docs/roadmap.md)
+- [docs/mvp.md](./docs/mvp.md)
+- [docs/security.md](./docs/security.md)
+- [docs/runner.md](./docs/runner.md)
+- [docs/agent-loop.md](./docs/agent-loop.md)
 
 ## 核心原则
 
@@ -52,77 +69,182 @@ Model-agnostic
 Git-native
 ```
 
-## 快速开始
+## 快速开始：5 分钟跑通
 
-### 安装依赖
+ForgeAgent MVP 要求 workspace 是一个 **已经有至少一个 commit 的 Git 仓库**。
+
+### 1. 安装依赖
 
 ```bash
 pnpm install
-```
-
-### 开发
-
-```bash
-pnpm dev
-
-# 或直接运行 CLI 包
-pnpm --filter @forgeagent/cli dev
-```
-
-### 构建
-
-```bash
 pnpm build
 ```
 
-### 测试
+### 2. 配置模型
+
+ForgeAgent 使用 OpenAI-compatible Chat Completions 接口。
+
+本地 Ollama 示例：
 
 ```bash
+export FORGEAGENT_MODEL_BASE_URL="http://localhost:11434/v1"
+export FORGEAGENT_MODEL_API_KEY="ollama"
+export FORGEAGENT_MODEL_NAME="qwen2.5-coder"
+```
+
+OpenAI 示例：
+
+```bash
+export FORGEAGENT_MODEL_BASE_URL="https://api.openai.com/v1"
+export FORGEAGENT_MODEL_API_KEY="sk-xxx"
+export FORGEAGENT_MODEL_NAME="gpt-4.1-mini"
+```
+
+DeepSeek 示例：
+
+```bash
+export FORGEAGENT_MODEL_BASE_URL="https://api.deepseek.com/v1"
+export FORGEAGENT_MODEL_API_KEY="sk-xxx"
+export FORGEAGENT_MODEL_NAME="deepseek-chat"
+```
+
+### 3. 启动 Runner
+
+```bash
+forgeagent runner start
+```
+
+默认地址：
+
+```txt
+http://127.0.0.1:17890
+```
+
+端口占用时：
+
+```bash
+FORGEAGENT_RUNNER_PORT=17891 forgeagent runner start
+```
+
+### 4. 添加 Git 仓库
+
+```bash
+cd /path/to/your/repo
+git status
+
+forgeagent workspace add .
+forgeagent workspace list
+```
+
+如果当前目录不是 Git 仓库，请先初始化：
+
+```bash
+git init
+git add .
+git commit -m "chore: initial commit"
+```
+
+### 5. 创建并运行任务
+
+```bash
+forgeagent task create \
+  --workspace <workspaceId> \
+  --prompt "给 README 增加一段配置说明" \
+  --run
+
+forgeagent task watch <taskId>
+```
+
+### 6. 查看 diff
+
+```bash
+forgeagent task diff <taskId>
+```
+
+注意：Agent 的修改只会写入隔离 worktree，原仓库不会立即变化。
+
+### 7. 交付任务
+
+把修改应用到原仓库：
+
+```bash
+forgeagent task apply <taskId>
+```
+
+在 worktree 分支中提交：
+
+```bash
+forgeagent task commit <taskId> --message "feat: update readme"
+```
+
+丢弃任务：
+
+```bash
+forgeagent task discard <taskId>
+```
+
+## apply / commit / discard 的区别
+
+```txt
+apply:
+  把 task worktree 中的 patch 应用到原仓库。
+  原仓库文件会变化。
+
+commit:
+  在 task worktree 的临时分支上提交。
+  原仓库当前分支不会变化。
+
+discard:
+  删除 task worktree 和临时分支。
+  原仓库不会变化。
+```
+
+## Worktree 说明
+
+ForgeAgent 不会让 Agent 直接修改你的原仓库。
+
+每个 task 会创建一个隔离 worktree：
+
+```txt
+~/.forgeagent/worktrees/<taskId>
+```
+
+Agent 只在这个目录里读写文件。你确认 diff 后，再选择 apply / commit / discard。
+
+## 开发命令
+
+```bash
+pnpm install
+pnpm build
+
+pnpm dev         # 默认起 CLI 包
+pnpm console:dev # 起 Web Console
+
 pnpm test
 pnpm test:run
-pnpm test:coverage
-```
-
-### 类型检查
-
-```bash
 pnpm typecheck
-```
-
-### 代码检查
-
-```bash
 pnpm lint
 pnpm lint:fix
 pnpm format
 pnpm format:check
 ```
 
-## CLI 命令
-
-Phase 0 仍保留模板 CLI 能力，用于后续迁移。
-
-```bash
-forgeagent chat
-
-forgeagent run "帮我分析这个 bug"
-
-forgeagent skill list
-
-forgeagent config init
-```
-
-后续 Phase 会新增：
+## CLI 命令一览
 
 ```bash
 forgeagent runner start
+
 forgeagent workspace add /path/to/repo
+forgeagent workspace list
+
 forgeagent task create --workspace <id> --prompt "..."
+forgeagent task run <taskId>
 forgeagent task watch <taskId>
 forgeagent task diff <taskId>
 forgeagent task apply <taskId>
 forgeagent task commit <taskId> --message "..."
 forgeagent task discard <taskId>
+forgeagent task cancel <taskId>
 ```
 
 ## 项目结构
@@ -130,9 +252,11 @@ forgeagent task discard <taskId>
 ```txt
 forgeagent/
 ├─ apps/
-│  └─ cli/              # ForgeAgent CLI
+│  ├─ cli/              # ForgeAgent CLI
+│  └─ console/          # Web Console Lite
 ├─ packages/
-│  └─ core/             # ForgeAgent OS core runtime
+│  ├─ core/             # ForgeAgent OS core runtime
+│  └─ runner/           # Local Runner daemon
 ├─ skills/              # 内置 Skills
 ├─ docs/                # 项目文档
 ├─ scripts/             # 共享 tsconfig

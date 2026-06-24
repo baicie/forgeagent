@@ -21,3 +21,25 @@ describe('diff viewer', () => {
     expect(screen.getByText('last event: evt_1')).toBeInTheDocument()
   })
 })
+
+describe('diff viewer phase 12', () => {
+  it('explains empty diff worktree boundary', () => {
+    render(<DiffViewer diff="" />)
+
+    expect(screen.getByText(/隔离 worktree/)).toBeInTheDocument()
+  })
+
+  it('shows worktree notice for non-empty diff', () => {
+    render(
+      <DiffViewer
+        diff="diff --git a/index.ts b/index.ts\n+hello"
+        worktreePath="/tmp/worktree"
+      />,
+    )
+
+    expect(
+      screen.getByText(/当前 diff 来自 task worktree/),
+    ).toBeInTheDocument()
+    expect(screen.getByText('/tmp/worktree')).toBeInTheDocument()
+  })
+})

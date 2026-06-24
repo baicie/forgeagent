@@ -139,7 +139,7 @@ describe('runner api client', () => {
     await expect(client.listTasks()).rejects.toMatchObject({
       name: 'RunnerApiError',
       status: 0,
-      code: 'NETWORK_ERROR',
+      code: 'RUNNER_UNAVAILABLE',
     })
   })
 })

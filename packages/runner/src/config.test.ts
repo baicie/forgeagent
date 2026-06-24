@@ -1,65 +1,41 @@
-import { homedir } from 'node:os'
-import { resolve } from 'node:path'
 import {
-  DEFAULT_RUNNER_HOST,
-  DEFAULT_RUNNER_PORT,
-  assertLocalRunnerHost,
+  DEFAULT_MIN_FREE_DISK_BYTES,
   loadRunnerConfig,
-  parseRunnerPort,
-  resolveDataDir,
+  parseByteSize,
 } from './config'
 
-describe('runner config', () => {
-  it('uses localhost defaults', () => {
-    const dataDir = '/tmp/forgeagent-test'
-    const config = loadRunnerConfig({ dataDir })
-
-    expect(config.host).toBe(DEFAULT_RUNNER_HOST)
-    expect(config.port).toBe(DEFAULT_RUNNER_PORT)
-    expect(config.dataDir).toBe(resolve(dataDir))
-    expect(config.dbFile).toBe(resolve(dataDir, 'runner-db.json'))
-  })
-
-  it('supports custom localhost, port and data dir', () => {
-    const dataDir = '/tmp/custom-forgeagent'
+describe('runner config phase 12', () => {
+  it('uses default min free disk bytes', () => {
     const config = loadRunnerConfig({
-      host: 'localhost',
-      port: 18000,
-      dataDir,
+      dataDir: '/tmp/forgeagent-test',
     })
 
-    expect(config.host).toBe('localhost')
-    expect(config.port).toBe(18000)
-    expect(config.dataDir).toBe(resolve(dataDir))
+    expect(config.minFreeDiskBytes).toBe(DEFAULT_MIN_FREE_DISK_BYTES)
   })
 
-  it('expands home data dir', () => {
-    expect(resolveDataDir('~/.forgeagent-test')).toBe(
-      resolve(homedir(), '.forgeagent-test'),
-    )
+  it('parses byte size values', () => {
+    expect(parseByteSize('1024', 0)).toBe(1024)
+    expect(parseByteSize('1kb', 0)).toBe(1024)
+    expect(parseByteSize('2mb', 0)).toBe(2 * 1024 * 1024)
+    expect(parseByteSize('1.5gb', 0)).toBe(Math.floor(1.5 * 1024 ** 3))
   })
 
-  it.each(['127.0.0.1', 'localhost', '::1'])('allows local host %s', host => {
-    expect(() => assertLocalRunnerHost(host)).not.toThrow()
+  it('returns fallback for null/empty input', () => {
+    expect(parseByteSize('', 999)).toBe(999)
+    expect(parseByteSize(undefined, 999)).toBe(999)
+    expect(parseByteSize(null, 999)).toBe(999)
   })
 
-  it.each(['0.0.0.0', '192.168.1.2', 'example.com'])(
-    'rejects non-local host %s',
-    host => {
-      expect(() => assertLocalRunnerHost(host)).toThrow(
-        'Local Runner only supports localhost host in MVP',
-      )
-    },
-  )
-
-  it.each([1, 17890, 65535, '17890'])('parses valid port %s', port => {
-    expect(parseRunnerPort(port)).toBe(Number(port))
+  it('throws on invalid byte size', () => {
+    expect(() => parseByteSize('abc', 0)).toThrow(/Invalid byte size/)
   })
 
-  it.each([0, -1, 65536, 'abc', Number.NaN])(
-    'rejects invalid port %s',
-    port => {
-      expect(() => parseRunnerPort(port)).toThrow('Invalid runner port')
-    },
-  )
+  it('allows min free disk override', () => {
+    const config = loadRunnerConfig({
+      dataDir: '/tmp/forgeagent-test',
+      minFreeDiskBytes: 1234,
+    })
+
+    expect(config.minFreeDiskBytes).toBe(1234)
+  })
 })

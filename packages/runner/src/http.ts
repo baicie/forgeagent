@@ -36,6 +36,12 @@ export function statusFromErrorCode(code: string): number {
     case 'PATH_ESCAPE_DETECTED':
       return 403
 
+    case 'DISK_SPACE_LOW':
+      return 507
+
+    case 'MODEL_CONFIG_MISSING':
+      return 500
+
     default:
       return 500
   }

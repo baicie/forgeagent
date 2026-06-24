@@ -16,6 +16,7 @@ import type {
   GitWorkspaceSnapshotService,
   WorkspaceSnapshot,
 } from '../git/workspaceSnapshot'
+import type { DiskSpaceService } from '../storage/disk'
 import type { AuditService } from './auditService'
 import type { EventService } from './eventService'
 import type { WorkspaceService } from './workspaceService'
@@ -41,6 +42,34 @@ function normalizeCommitMessage(task: Task, message?: string): string {
   return normalized || createDefaultCommitMessage(task)
 }
 
+function createCompletedNextStepMessage(task: Task): string {
+  return [
+    'Task completed. Changes are in the isolated task worktree, not in the original repository yet.',
+    '',
+    `Worktree: ${task.worktreePath}`,
+    '',
+    'Next steps:',
+    `  forgeagent task diff ${task.id}`,
+    `  forgeagent task apply ${task.id}`,
+    `  forgeagent task commit ${task.id} --message "..."`,
+    `  forgeagent task discard ${task.id}`,
+  ].join('\n')
+}
+
+function createAppliedMessage(gitRoot: string): string {
+  return [
+    `Patch applied to original repository: ${gitRoot}`,
+    '',
+    'Original repository files have changed.',
+    '',
+    'Next steps:',
+    `  cd ${gitRoot}`,
+    '  git diff',
+    '  git add .',
+    '  git commit -m "..."',
+  ].join('\n')
+}
+
 export class TaskService {
   constructor(
     private readonly db: RunnerDb,
@@ -54,6 +83,7 @@ export class TaskService {
     private readonly eventService: EventService,
     private readonly auditService: AuditService,
     private readonly gitWorkspaceSnapshotService?: GitWorkspaceSnapshotService,
+    private readonly diskSpaceService?: DiskSpaceService,
   ) {}
 
   list(): Task[] {
@@ -79,8 +109,12 @@ export class TaskService {
     )
     const taskId = `task_${randomUUID()}`
     let snapshot: WorkspaceSnapshot | undefined
-
     let worktreePath: string | undefined
+
+    await this.diskSpaceService?.assertMinFree(
+      this.config.dataDir,
+      this.config.minFreeDiskBytes,
+    )
 
     try {
       snapshot = await this.gitWorkspaceSnapshotService?.capture(
@@ -176,6 +210,15 @@ export class TaskService {
 
   async complete(id: string, output?: unknown): Promise<Task> {
     const task = await this.transition(id, 'completed', 'Task completed')
+
+    await this.eventService.append({
+      taskId: task.id,
+      type: 'agent.message',
+      payload: {
+        role: 'system',
+        message: createCompletedNextStepMessage(task),
+      },
+    })
 
     await this.eventService.append({
       taskId: task.id,
@@ -315,7 +358,7 @@ export class TaskService {
       type: 'agent.message',
       payload: {
         role: 'system',
-        message: `Patch applied to original repository: ${patch.patchFile}`,
+        message: createAppliedMessage(workspace.gitRoot),
       },
     })
 

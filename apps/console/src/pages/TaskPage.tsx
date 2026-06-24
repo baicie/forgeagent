@@ -5,7 +5,7 @@ import { ApprovalPanel } from '../components/ApprovalPanel'
 import { DiffViewer } from '../components/DiffViewer'
 import { TaskTimeline } from '../components/TaskTimeline'
 import { ToolCallView } from '../components/ToolCallView'
-import type { DiffResult, Task, TaskEvent } from '../types'
+import type { DiffResult, Task, TaskEvent, Workspace } from '../types'
 
 export interface TaskPageProps {
   client: RunnerApiClient
@@ -15,9 +15,11 @@ export interface TaskPageProps {
 
 export function TaskPage(props: TaskPageProps) {
   const [task, setTask] = useState<Task | undefined>()
+  const [workspace, setWorkspace] = useState<Workspace | undefined>()
   const [events, setEvents] = useState<TaskEvent[]>([])
   const [diff, setDiff] = useState<DiffResult | undefined>()
   const [error, setError] = useState<string | undefined>()
+  const [notice, setNotice] = useState<string | undefined>()
   const [busy, setBusy] = useState(false)
   const [commitMessage, setCommitMessage] = useState('')
 
@@ -42,6 +44,7 @@ export function TaskPage(props: TaskPageProps) {
     try {
       const nextTask = await props.client.getTask(props.taskId)
       setTask(nextTask)
+      setWorkspace(await props.client.getWorkspace(nextTask.workspaceId))
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }
@@ -60,6 +63,7 @@ export function TaskPage(props: TaskPageProps) {
   useEffect(() => {
     setEvents([])
     setDiff(undefined)
+    setNotice(undefined)
     void loadTask()
     void loadDiff()
 
@@ -75,6 +79,12 @@ export function TaskPage(props: TaskPageProps) {
 
         if (event.type === 'diff.updated') {
           void loadDiff()
+        }
+
+        if (event.type === 'task.completed') {
+          setNotice(
+            '任务已完成。修改仍在隔离 worktree 中，原仓库尚未变化。请查看 diff 后选择 Apply / Commit / Discard。',
+          )
         }
       },
       onError() {
@@ -109,9 +119,11 @@ export function TaskPage(props: TaskPageProps) {
 
   const apply = async () => {
     await runAction(async () => {
-      await props.client.applyTask(props.taskId)
-      await loadTask()
+      const appliedTask = await props.client.applyTask(props.taskId)
+      setTask(appliedTask)
+      setWorkspace(await props.client.getWorkspace(appliedTask.workspaceId))
       await loadDiff()
+      setNotice('Patch 已应用到原仓库。请回到原仓库执行 git diff 查看变化。')
     })
   }
 
@@ -122,6 +134,9 @@ export function TaskPage(props: TaskPageProps) {
       })
       setCommitMessage('')
       await loadTask()
+      setNotice(
+        'Commit 已创建在 task worktree 分支中，原仓库当前分支未被修改。',
+      )
     })
   }
 
@@ -129,6 +144,7 @@ export function TaskPage(props: TaskPageProps) {
     await runAction(async () => {
       await props.client.discardTask(props.taskId)
       await loadTask()
+      setNotice('Task worktree 和临时分支已丢弃，原仓库未被修改。')
     })
   }
 
@@ -140,7 +156,11 @@ export function TaskPage(props: TaskPageProps) {
   }
 
   const deleteTask = async () => {
-    if (!window.confirm('确定要彻底删除这个任务吗？\n\n这将删除 worktree 和所有关联记录，无法撤销。')) {
+    if (
+      !window.confirm(
+        '确定要彻底删除这个任务吗？\n\n这将删除 worktree 和所有关联记录，无法撤销。',
+      )
+    ) {
       return
     }
 
@@ -166,6 +186,24 @@ export function TaskPage(props: TaskPageProps) {
       </div>
 
       {error ? <div className="error">{error}</div> : null}
+      {notice ? <div className="notice">{notice}</div> : null}
+
+      <section className="panel">
+        <h3>交付边界</h3>
+        <dl className="meta-list">
+          <dt>Original Repo</dt>
+          <dd>{workspace?.gitRoot || 'loading...'}</dd>
+          <dt>Task Worktree</dt>
+          <dd>{task?.worktreePath || 'loading...'}</dd>
+          <dt>Base</dt>
+          <dd>
+            {task ? `${task.baseBranch}@${task.baseCommit}` : 'loading...'}
+          </dd>
+        </dl>
+        <p className="muted">
+          Agent 只修改 Task Worktree。原仓库只有在点击 Apply 后才会被写入。
+        </p>
+      </section>
 
       <div className="task-actions">
         <button disabled={busy} type="button" onClick={runTask}>
@@ -174,18 +212,33 @@ export function TaskPage(props: TaskPageProps) {
         <button disabled={busy} type="button" onClick={loadDiff}>
           刷新 diff
         </button>
-        <button disabled={busy} type="button" onClick={apply}>
-          Apply
+        <button
+          disabled={busy}
+          type="button"
+          onClick={apply}
+          title="把 worktree 中的 patch 应用到原仓库"
+        >
+          Apply 到原仓库
         </button>
         <input
           value={commitMessage}
           placeholder="commit message，可选"
           onChange={event => setCommitMessage(event.currentTarget.value)}
         />
-        <button disabled={busy} type="button" onClick={commit}>
-          Commit
+        <button
+          disabled={busy}
+          type="button"
+          onClick={commit}
+          title="在 task worktree 分支中提交，不修改原仓库当前分支"
+        >
+          Commit Worktree
         </button>
-        <button disabled={busy} type="button" onClick={discard}>
+        <button
+          disabled={busy}
+          type="button"
+          onClick={discard}
+          title="删除 task worktree 和临时分支，不修改原仓库"
+        >
           Discard
         </button>
         <button disabled={busy} type="button" onClick={cancel}>
@@ -223,7 +276,11 @@ export function TaskPage(props: TaskPageProps) {
 
         <section className="panel wide">
           <h3>Diff</h3>
-          <DiffViewer diff={diff?.diff || ''} lastEventId={lastEventId} />
+          <DiffViewer
+            diff={diff?.diff || ''}
+            lastEventId={lastEventId}
+            worktreePath={task?.worktreePath}
+          />
         </section>
       </div>
     </div>

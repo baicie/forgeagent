@@ -1,3 +1,4 @@
+import { createForgeAgentError } from '@forgeagent/core'
 import fastify from 'fastify'
 import type { FastifyInstance } from 'fastify'
 import { loadRunnerConfig } from './config'
@@ -51,16 +52,41 @@ export async function createRunnerServer(
   return app
 }
 
+function isAddressInUse(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    String((error as { code: unknown }).code) === 'EADDRINUSE'
+  )
+}
+
 export async function startRunnerServer(
   options: CreateRunnerServerOptions = {},
 ): Promise<RunnerServerInstance> {
   const app = await createRunnerServer(options)
   const config = options.config || loadRunnerConfig(options)
 
-  await app.listen({
-    host: config.host,
-    port: config.port,
-  })
+  try {
+    await app.listen({
+      host: config.host,
+      port: config.port,
+    })
+  } catch (error) {
+    if (isAddressInUse(error)) {
+      throw createForgeAgentError(
+        'RUNNER_PORT_IN_USE',
+        `Runner port is already in use: ${config.host}:${config.port}`,
+        {
+          host: config.host,
+          port: config.port,
+          hint: 'Stop the existing runner or choose another port with FORGEAGENT_RUNNER_PORT.',
+        },
+      )
+    }
+
+    throw error
+  }
 
   return app
 }

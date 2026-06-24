@@ -4,7 +4,12 @@ import type { RunnerApiClientFactory } from '../client/runnerClient'
 import { createRunnerApiClient } from '../client/runnerClient'
 import type { watchTaskEvents as watchTaskEventsFn } from '../client/sse'
 import { watchTaskEvents } from '../client/sse'
-import { formatTask, formatTaskEvent } from '../output'
+import {
+  formatTask,
+  formatTaskAppliedHint,
+  formatTaskCreatedHint,
+  formatTaskEvent,
+} from '../output'
 
 export interface CreateTaskCommandOptions {
   watchTaskEvents?: typeof watchTaskEventsFn
@@ -38,11 +43,20 @@ export function createTaskCommand(
         console.log(pc.green('Task created'))
         console.log(formatTask(task))
         console.log('')
-        console.log(pc.dim(`Watch: forgeagent task watch ${task.id}`))
-        console.log(pc.dim(`Diff:  forgeagent task diff ${task.id}`))
+        console.log(
+          pc.yellow('Agent will modify only the isolated task worktree.'),
+        )
+        console.log(
+          pc.yellow(
+            'The original repository will not change until you apply the task.',
+          ),
+        )
+        console.log('')
+        console.log(formatTaskCreatedHint(task))
 
         if (actionOptions.run) {
           await client.runTask(task.id)
+          console.log('')
           console.log(pc.green('Agent started'))
         }
       },
@@ -106,6 +120,8 @@ export function createTaskCommand(
 
       console.log(pc.green('Task run requested'))
       console.log(JSON.stringify(result, null, 2))
+      console.log('')
+      console.log(pc.dim(`Watch: forgeagent task watch ${taskId}`))
     })
 
   command
@@ -114,7 +130,17 @@ export function createTaskCommand(
     .argument('<taskId>', 'Task id')
     .action(async (taskId: string) => {
       const client = clientFactory()
+      const task = await client.getTask(taskId)
       const result = await client.getTaskDiff(taskId)
+
+      console.log(
+        pc.yellow('Diff is generated from the isolated task worktree.'),
+      )
+      console.log(pc.dim(`Worktree: ${task.worktreePath}`))
+      console.log(
+        pc.dim('Original repository is unchanged until you apply the task.'),
+      )
+      console.log('')
 
       if (!result.diff.trim()) {
         console.log(pc.dim('Empty diff.'))
@@ -135,9 +161,12 @@ export function createTaskCommand(
     .action(async (taskId: string) => {
       const client = clientFactory()
       const task = await client.applyTask(taskId)
+      const workspace = await client.getWorkspace(task.workspaceId)
 
       console.log(pc.green('Task applied'))
       console.log(formatTask(task))
+      console.log('')
+      console.log(formatTaskAppliedHint(workspace))
     })
 
   command
@@ -153,6 +182,11 @@ export function createTaskCommand(
 
       console.log(pc.green('Task committed'))
       console.log(formatTask(task))
+      console.log('')
+      console.log(pc.yellow('Commit was created in the task worktree branch.'))
+      console.log(
+        pc.yellow('The original repository branch was not modified.'),
+      )
     })
 
   command
@@ -165,6 +199,12 @@ export function createTaskCommand(
 
       console.log(pc.green('Task discarded'))
       console.log(formatTask(task))
+      console.log('')
+      console.log(
+        pc.dim(
+          'Worktree and temporary branch were removed. Original repository was not modified.',
+        ),
+      )
     })
 
   command

@@ -175,7 +175,7 @@ describe('runner api client', () => {
 
     await expect(client.listTasks()).rejects.toMatchObject({
       name: 'RunnerApiError',
-      code: 'NETWORK_ERROR',
+      code: 'RUNNER_UNAVAILABLE',
       status: 0,
     })
   })
@@ -218,5 +218,55 @@ describe('runner api client', () => {
     const client = new RunnerApiClient()
 
     await expect(client.health()).resolves.toBeUndefined()
+  })
+
+  it('wraps network error as RUNNER_UNAVAILABLE with hint', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new Error('ECONNREFUSED')
+      }),
+    )
+
+    const client = new RunnerApiClient('http://127.0.0.1:17890')
+
+    await expect(client.listTasks()).rejects.toMatchObject({
+      code: 'RUNNER_UNAVAILABLE',
+      details: {
+        hint: expect.stringContaining('forgeagent runner start'),
+      },
+    })
+  })
+
+  it('gets workspace by id', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers({
+        'content-type': 'application/json',
+      }),
+      json: async () => ({
+        id: 'ws_1',
+        name: 'repo',
+        repoPath: '/repo',
+        gitRoot: '/repo',
+        currentBranch: 'main',
+        currentCommit: 'a'.repeat(40),
+        createdAt: '2026-06-24T00:00:00.000Z',
+        updatedAt: '2026-06-24T00:00:00.000Z',
+      }),
+    }))
+
+    vi.stubGlobal('fetch', fetchMock)
+
+    const client = new RunnerApiClient('http://127.0.0.1:17890')
+    const workspace = await client.getWorkspace('ws_1')
+
+    expect(workspace.gitRoot).toBe('/repo')
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://127.0.0.1:17890/api/workspaces/ws_1',
+      expect.anything(),
+    )
   })
 })

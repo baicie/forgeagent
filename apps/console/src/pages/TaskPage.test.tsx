@@ -42,6 +42,16 @@ function createClient(): RunnerApiClient {
       createdAt: '2026-06-22T00:00:00.000Z',
       updatedAt: '2026-06-22T00:00:00.000Z',
     })),
+    getWorkspace: vi.fn(async () => ({
+      id: 'ws_1',
+      name: 'repo',
+      repoPath: '/repo',
+      gitRoot: '/repo',
+      currentBranch: 'main',
+      currentCommit: 'a'.repeat(40),
+      createdAt: '2026-06-22T00:00:00.000Z',
+      updatedAt: '2026-06-22T00:00:00.000Z',
+    })),
     getTaskDiff: vi.fn(async () => ({
       taskId: 'task_1',
       diff: 'diff --git a/README.md b/README.md\n+hello',
@@ -93,5 +103,43 @@ describe('task page', () => {
     expect(FakeEventSource.instances[0].url).toBe(
       'http://127.0.0.1:17890/api/tasks/task_1/events',
     )
+  })
+})
+
+describe('task page phase 12', () => {
+  beforeEach(() => {
+    FakeEventSource.instances = []
+    vi.stubGlobal('EventSource', FakeEventSource)
+  })
+
+  it('shows original repo and task worktree boundary', async () => {
+    const client = createClient()
+
+    render(<TaskPage client={client} taskId="task_1" onBack={vi.fn()} />)
+
+    await screen.findByText('Original Repo')
+    expect(screen.getByText('/repo')).toBeInTheDocument()
+    expect(screen.getAllByText('/tmp/worktree').length).toBeGreaterThan(0)
+    expect(
+      screen.getByText(/Agent 只修改 Task Worktree/),
+    ).toBeInTheDocument()
+  })
+
+  it('shows completion notice when task completes', async () => {
+    const client = createClient()
+
+    render(<TaskPage client={client} taskId="task_1" onBack={vi.fn()} />)
+
+    await screen.findByText('fix bug')
+
+    FakeEventSource.instances[0].emit({
+      id: 'evt_completed',
+      taskId: 'task_1',
+      type: 'task.completed',
+      payload: {},
+      createdAt: '2026-06-22T00:00:00.000Z',
+    })
+
+    await screen.findByText(/原仓库尚未变化/)
   })
 })
