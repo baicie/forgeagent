@@ -5,6 +5,7 @@ import { legacyCommand } from './commands/legacy'
 import { runnerCommand } from './commands/runner'
 import { createTaskCommand } from './commands/task'
 import { createWorkspaceCommand } from './commands/workspace'
+import { createApprovalCommand } from './commands/approval'
 
 export interface CreateCliProgramOptions {
   clientFactory?: RunnerApiClientFactory
@@ -19,6 +20,7 @@ export function createCliProgram(options: CreateCliProgramOptions = {}) {
     .version('0.1.0')
     .showHelpAfterError()
 
+  program.addCommand(createApprovalCommand())
   program.addCommand(runnerCommand)
   program.addCommand(createWorkspaceCommand(options.clientFactory))
   program.addCommand(createTaskCommand(options.clientFactory))

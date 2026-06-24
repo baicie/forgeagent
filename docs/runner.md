@@ -54,6 +54,19 @@ forgeagent runner start
 10. 通过 SSE 输出事件流
 ```
 
+## Workspace 快照
+
+创建 Task 时，Runner 会把原仓库当前的工作区状态导入隔离 worktree：
+
+```txt
+tracked staged / unstaged 变更
++ 安全的 untracked 文件
+→ worktree 内部 snapshot commit
+→ Agent 只基于 snapshot 产生增量 diff
+```
+
+原仓库不会被暂存、提交或清理。Apply 前 Runner 会重新计算 workspace snapshot hash；只有原工作区仍与 Task 创建时一致，才会应用 Agent 增量。
+
 ## Runner 不做什么
 
 ```txt

@@ -1,6 +1,9 @@
 #!/usr/bin/env node
+import { config as loadEnv } from 'dotenv'
 import pc from 'picocolors'
 import { createCliProgram } from './cli'
+
+loadEnv()
 
 createCliProgram()
   .parseAsync()

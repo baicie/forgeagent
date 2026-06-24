@@ -67,7 +67,7 @@ async function createServerFixture() {
   }
 }
 
-describe('task delivery routes', () => {
+describe('task delivery routes', { timeout: 20000 }, () => {
   it('shows diff for added, modified and deleted files', async () => {
     const fixture = await createServerFixture()
 

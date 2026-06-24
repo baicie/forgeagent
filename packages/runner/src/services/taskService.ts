@@ -12,6 +12,10 @@ import { assertOriginalRepoReadyForApply } from '../git/deliveryGuard'
 import type { GitPatchService } from '../git/patch'
 import type { GitRepositoryService } from '../git/repository'
 import type { GitWorktreeService } from '../git/worktree'
+import type {
+  GitWorkspaceSnapshotService,
+  WorkspaceSnapshot,
+} from '../git/workspaceSnapshot'
 import type { AuditService } from './auditService'
 import type { EventService } from './eventService'
 import type { WorkspaceService } from './workspaceService'
@@ -49,6 +53,7 @@ export class TaskService {
     private readonly gitCommitService: GitCommitService,
     private readonly eventService: EventService,
     private readonly auditService: AuditService,
+    private readonly gitWorkspaceSnapshotService?: GitWorkspaceSnapshotService,
   ) {}
 
   list(): Task[] {
@@ -73,10 +78,15 @@ export class TaskService {
       workspace.gitRoot,
     )
     const taskId = `task_${randomUUID()}`
+    let snapshot: WorkspaceSnapshot | undefined
 
     let worktreePath: string | undefined
 
     try {
+      snapshot = await this.gitWorkspaceSnapshotService?.capture(
+        repositoryInfo.gitRoot,
+      )
+
       const worktree = await this.gitWorktreeService.create({
         gitRoot: repositoryInfo.gitRoot,
         taskId,
@@ -84,6 +94,13 @@ export class TaskService {
       })
 
       worktreePath = worktree.worktreePath
+
+      if (snapshot) {
+        await this.gitWorkspaceSnapshotService?.initializeWorktree(
+          snapshot,
+          worktree.worktreePath,
+        )
+      }
 
       const now = new Date().toISOString()
 
@@ -94,6 +111,7 @@ export class TaskService {
         status: 'created',
         baseBranch: repositoryInfo.currentBranch,
         baseCommit: repositoryInfo.currentCommit,
+        workspaceSnapshotHash: snapshot?.hash,
         worktreePath: worktree.worktreePath,
         createdAt: now,
         updatedAt: now,
@@ -110,6 +128,7 @@ export class TaskService {
           worktreePath: task.worktreePath,
           baseBranch: task.baseBranch,
           baseCommit: task.baseCommit,
+          workspaceSnapshotHash: task.workspaceSnapshotHash,
         },
       })
 
@@ -121,6 +140,8 @@ export class TaskService {
           prompt: task.prompt,
           baseBranch: task.baseBranch,
           baseCommit: task.baseCommit,
+          workspaceSnapshotHash: task.workspaceSnapshotHash,
+          excludedSnapshotPaths: snapshot?.excludedPaths,
           worktreePath: task.worktreePath,
         },
       })
@@ -263,11 +284,15 @@ export class TaskService {
     this.assertCanDeliver(task, 'applied')
 
     const workspace = this.workspaceService.get(task.workspaceId)
+    const currentSnapshot = task.workspaceSnapshotHash
+      ? await this.gitWorkspaceSnapshotService?.capture(workspace.gitRoot)
+      : undefined
 
     await assertOriginalRepoReadyForApply({
       task,
       gitRoot: workspace.gitRoot,
       gitRepositoryService: this.gitRepositoryService,
+      currentWorkspaceSnapshotHash: currentSnapshot?.hash,
     })
 
     const patch = await this.gitPatchService.createPatchFromWorktree(

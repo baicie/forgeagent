@@ -28,6 +28,7 @@ export interface Task {
   status: TaskStatus
   baseBranch: string
   baseCommit: string
+  workspaceSnapshotHash?: string
   worktreePath: string
   createdAt: string
   updatedAt: string

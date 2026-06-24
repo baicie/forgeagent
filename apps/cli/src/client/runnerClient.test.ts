@@ -71,6 +71,68 @@ describe('runner api client', () => {
     )
   })
 
+  it('approves a pending command through the runner API', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers({
+          'content-type': 'application/json',
+        }),
+        json: async () => ({
+          approval: {
+            id: 'approval_1',
+            status: 'approved',
+          },
+        }),
+      })),
+    )
+
+    const client = new RunnerApiClient('http://127.0.0.1:17890')
+
+    await client.approveApproval('approval_1')
+
+    expect(fetch).toHaveBeenCalledWith(
+      'http://127.0.0.1:17890/api/approvals/approval_1/approve',
+      expect.objectContaining({
+        method: 'POST',
+      }),
+    )
+  })
+
+  it('rejects a pending command through the runner API', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers({
+          'content-type': 'application/json',
+        }),
+        json: async () => ({
+          approval: {
+            id: 'approval_1',
+            status: 'rejected',
+          },
+        }),
+      })),
+    )
+
+    const client = new RunnerApiClient('http://127.0.0.1:17890')
+
+    await client.rejectApproval('approval_1')
+
+    expect(fetch).toHaveBeenCalledWith(
+      'http://127.0.0.1:17890/api/approvals/approval_1/reject',
+      expect.objectContaining({
+        method: 'POST',
+      }),
+    )
+  })
+
   it('throws RunnerApiError for error response', async () => {
     vi.stubGlobal(
       'fetch',

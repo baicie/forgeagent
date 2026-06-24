@@ -184,6 +184,20 @@ export class RunnerApiClient {
     })
   }
 
+  async approveApproval(id: string): Promise<unknown> {
+    return this.request(
+      `/api/approvals/${encodeURIComponent(id)}/approve`,
+      { method: 'POST' },
+    )
+  }
+
+  async rejectApproval(id: string): Promise<unknown> {
+    return this.request(
+      `/api/approvals/${encodeURIComponent(id)}/reject`,
+      { method: 'POST' },
+    )
+  }
+
   private async request<T>(
     path: string,
     options: {

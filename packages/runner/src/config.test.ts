@@ -11,26 +11,26 @@ import {
 
 describe('runner config', () => {
   it('uses localhost defaults', () => {
-    const config = loadRunnerConfig({
-      dataDir: '/tmp/forgeagent-test',
-    })
+    const dataDir = '/tmp/forgeagent-test'
+    const config = loadRunnerConfig({ dataDir })
 
     expect(config.host).toBe(DEFAULT_RUNNER_HOST)
     expect(config.port).toBe(DEFAULT_RUNNER_PORT)
-    expect(config.dataDir).toBe('/tmp/forgeagent-test')
-    expect(config.dbFile).toBe('/tmp/forgeagent-test/runner-db.json')
+    expect(config.dataDir).toBe(resolve(dataDir))
+    expect(config.dbFile).toBe(resolve(dataDir, 'runner-db.json'))
   })
 
   it('supports custom localhost, port and data dir', () => {
+    const dataDir = '/tmp/custom-forgeagent'
     const config = loadRunnerConfig({
       host: 'localhost',
       port: 18000,
-      dataDir: '/tmp/custom-forgeagent',
+      dataDir,
     })
 
     expect(config.host).toBe('localhost')
     expect(config.port).toBe(18000)
-    expect(config.dataDir).toBe('/tmp/custom-forgeagent')
+    expect(config.dataDir).toBe(resolve(dataDir))
   })
 
   it('expands home data dir', () => {

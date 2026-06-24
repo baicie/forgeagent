@@ -6,6 +6,7 @@ export interface AssertOriginalRepoReadyInput {
   task: Task
   gitRoot: string
   gitRepositoryService: GitRepositoryService
+  currentWorkspaceSnapshotHash?: string
 }
 
 export async function assertOriginalRepoReadyForApply(
@@ -26,6 +27,25 @@ export async function assertOriginalRepoReadyForApply(
         actualCommit: repositoryInfo.currentCommit,
       },
     )
+  }
+
+  if (input.task.workspaceSnapshotHash) {
+    if (
+      input.currentWorkspaceSnapshotHash !== input.task.workspaceSnapshotHash
+    ) {
+      throw createForgeAgentError(
+        'PATCH_APPLY_FAILED',
+        'Original workspace has changed since task was created',
+        {
+          taskId: input.task.id,
+          gitRoot: input.gitRoot,
+          expectedSnapshotHash: input.task.workspaceSnapshotHash,
+          actualSnapshotHash: input.currentWorkspaceSnapshotHash,
+        },
+      )
+    }
+
+    return
   }
 
   if (repositoryInfo.isDirty) {

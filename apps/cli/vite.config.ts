@@ -35,6 +35,7 @@ export default defineConfig({
         '@forgeagent/runner',
         'commander',
         'picocolors',
+        'dotenv',
       ],
     },
   },

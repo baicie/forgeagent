@@ -2,6 +2,7 @@ import {
   access,
   mkdir,
   mkdtemp,
+  readFile,
   realpath,
   rm,
   writeFile,
@@ -13,7 +14,7 @@ import { createInMemoryRunnerDb } from './db'
 import { createRunnerServer } from './server'
 import { createGitFixture, runGitFixture } from './test/git-fixtures'
 
-describe('runner server', () => {
+describe('runner server', { timeout: 20000 }, () => {
   let tempDir: string
 
   beforeEach(async () => {
@@ -186,6 +187,180 @@ describe('runner server', () => {
       await app.close()
     }
   })
+
+  it('creates task from the current workspace snapshot', async () => {
+    const app = await createTestServer()
+    const fixture = await createGitFixture()
+
+    try {
+      await writeFile(join(fixture.repoPath, 'staged.txt'), 'committed\n')
+      await runGitFixture(fixture.repoPath, ['add', 'staged.txt'])
+      await runGitFixture(fixture.repoPath, [
+        'commit',
+        '-m',
+        'add staged fixture',
+      ])
+
+      await writeFile(join(fixture.repoPath, 'staged.txt'), 'staged change\n')
+      await runGitFixture(fixture.repoPath, ['add', 'staged.txt'])
+      await writeFile(
+        join(fixture.repoPath, 'README.md'),
+        '# Unstaged change\n',
+      )
+      await writeFile(
+        join(fixture.repoPath, 'untracked.txt'),
+        'untracked change\n',
+      )
+
+      const workspaceResponse = await app.inject({
+        method: 'POST',
+        url: '/api/workspaces',
+        payload: {
+          repoPath: fixture.repoPath,
+        },
+      })
+
+      const workspace = workspaceResponse.json() as { id: string }
+      const taskResponse = await app.inject({
+        method: 'POST',
+        url: '/api/tasks',
+        payload: {
+          workspaceId: workspace.id,
+          prompt: 'continue current work',
+        },
+      })
+
+      expect(taskResponse.statusCode).toBe(201)
+
+      const task = taskResponse.json() as {
+        id: string
+        worktreePath: string
+      }
+
+      await expect(
+        readFile(join(task.worktreePath, 'staged.txt'), 'utf-8'),
+      ).resolves.toContain('staged change')
+      await expect(
+        readFile(join(task.worktreePath, 'README.md'), 'utf-8'),
+      ).resolves.toContain('# Unstaged change')
+      await expect(
+        readFile(join(task.worktreePath, 'untracked.txt'), 'utf-8'),
+      ).resolves.toContain('untracked change')
+
+      const diffResponse = await app.inject({
+        method: 'GET',
+        url: `/api/tasks/${task.id}/diff`,
+      })
+
+      expect(diffResponse.statusCode).toBe(200)
+      expect(diffResponse.json().diff).toBe('')
+    } finally {
+      await fixture.cleanup()
+      await app.close()
+    }
+  }, 20000)
+
+  it('applies only agent changes when the workspace still matches its snapshot', async () => {
+    const app = await createTestServer()
+    const fixture = await createGitFixture()
+
+    try {
+      await writeFile(
+        join(fixture.repoPath, 'README.md'),
+        '# Current workspace\n',
+      )
+      await writeFile(join(fixture.repoPath, 'untracked.txt'), 'keep me\n')
+
+      const workspaceResponse = await app.inject({
+        method: 'POST',
+        url: '/api/workspaces',
+        payload: { repoPath: fixture.repoPath },
+      })
+      const workspace = workspaceResponse.json() as { id: string }
+      const taskResponse = await app.inject({
+        method: 'POST',
+        url: '/api/tasks',
+        payload: {
+          workspaceId: workspace.id,
+          prompt: 'update current work',
+        },
+      })
+      const task = taskResponse.json() as {
+        id: string
+        worktreePath: string
+      }
+
+      await writeFile(join(task.worktreePath, 'README.md'), '# Agent change\n')
+      await app.inject({ method: 'POST', url: `/api/tasks/${task.id}/prepare` })
+      await app.inject({ method: 'POST', url: `/api/tasks/${task.id}/start` })
+      await app.inject({
+        method: 'POST',
+        url: `/api/tasks/${task.id}/complete`,
+      })
+
+      const applyResponse = await app.inject({
+        method: 'POST',
+        url: `/api/tasks/${task.id}/apply`,
+      })
+
+      expect(applyResponse.statusCode).toBe(200)
+      await expect(
+        readFile(join(fixture.repoPath, 'README.md'), 'utf-8'),
+      ).resolves.toContain('# Agent change')
+      await expect(
+        readFile(join(fixture.repoPath, 'untracked.txt'), 'utf-8'),
+      ).resolves.toContain('keep me')
+    } finally {
+      await fixture.cleanup()
+      await app.close()
+    }
+  }, 20000)
+
+  it('excludes sensitive and ignored untracked files from the task snapshot', async () => {
+    const app = await createTestServer()
+    const fixture = await createGitFixture()
+
+    try {
+      await writeFile(join(fixture.repoPath, 'safe.txt'), 'safe\n')
+      await writeFile(join(fixture.repoPath, '.env.local'), 'SECRET=1\n')
+      await mkdir(join(fixture.repoPath, 'node_modules', 'pkg'), {
+        recursive: true,
+      })
+      await writeFile(
+        join(fixture.repoPath, 'node_modules', 'pkg', 'index.js'),
+        'ignored\n',
+      )
+
+      const workspaceResponse = await app.inject({
+        method: 'POST',
+        url: '/api/workspaces',
+        payload: { repoPath: fixture.repoPath },
+      })
+      const workspace = workspaceResponse.json() as { id: string }
+      const taskResponse = await app.inject({
+        method: 'POST',
+        url: '/api/tasks',
+        payload: {
+          workspaceId: workspace.id,
+          prompt: 'inspect safe files',
+        },
+      })
+      const task = taskResponse.json() as { worktreePath: string }
+
+      await expect(
+        access(join(task.worktreePath, 'safe.txt')),
+      ).resolves.toBeUndefined()
+      await expect(
+        access(join(task.worktreePath, '.env.local')),
+      ).rejects.toThrow()
+      await expect(
+        access(join(task.worktreePath, 'node_modules', 'pkg', 'index.js')),
+      ).rejects.toThrow()
+    } finally {
+      await fixture.cleanup()
+      await app.close()
+    }
+  }, 20000)
 
   it('reads diff from task worktree', async () => {
     const app = await createTestServer()

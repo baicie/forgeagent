@@ -27,6 +27,8 @@ Agent 修改 worktree
 用户 apply / commit / discard
 ```
 
+Task worktree 会继承创建任务时的 staged、unstaged 和安全 untracked 内容，并将其固化为内部基线提交。敏感文件、忽略目录和不安全符号链接不会作为 untracked 快照复制。Apply 前必须验证原 workspace 未偏离创建任务时的快照。
+
 ### 2. Console 不执行命令
 
 命令执行只能发生在 Runner。

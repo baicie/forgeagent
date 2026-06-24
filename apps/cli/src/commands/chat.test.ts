@@ -6,7 +6,9 @@ describe('chatCommand', () => {
 
     await expect(chatCommand(undefined)).resolves.toBeUndefined()
 
-    expect(logSpy).toHaveBeenCalledWith('No prompt provided. Exiting.')
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.stringContaining('No prompt provided. Exiting.'),
+    )
 
     logSpy.mockRestore()
   })

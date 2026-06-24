@@ -5,9 +5,11 @@ describe('createCliProgram', () => {
     const program = createCliProgram()
 
     expect(program.commands.map(command => command.name())).toEqual([
+      'approval',
       'runner',
       'workspace',
       'task',
+      'config',
       'legacy',
     ])
   })

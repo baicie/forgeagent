@@ -22,6 +22,7 @@ export const TaskSchema = z.object({
   status: TaskStatusSchema,
   baseBranch: z.string().min(1),
   baseCommit: z.string().min(1),
+  workspaceSnapshotHash: z.string().length(64).optional(),
   worktreePath: z.string().min(1),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),

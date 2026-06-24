@@ -2,6 +2,8 @@ import type { Approval, Task } from '@forgeagent/core'
 import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { ForgeAgentLoop } from '../agent/loop'
+import { OpenAICompatibleModelGateway } from '../agent/model'
 import { loadRunnerConfig } from '../config'
 import { createInMemoryRunnerDb } from '../db'
 import { createRunnerServer } from '../server'
@@ -50,6 +52,34 @@ async function createApprovalServerFixture() {
     db,
   })
 
+  app.forgeagent.agentLoop = new ForgeAgentLoop(
+    app.forgeagent,
+    new OpenAICompatibleModelGateway(
+      {
+        baseUrl: 'http://model.test/v1',
+        model: 'test-model',
+      },
+      async () => ({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        text: async () => '',
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  message: 'Task resumed after approval',
+                  final: true,
+                }),
+              },
+            },
+          ],
+        }),
+      }),
+    ),
+  )
+
   async function createApproval(command: string): Promise<Approval> {
     return app.forgeagent.approvalService.create({
       taskId: task.id,
@@ -75,12 +105,12 @@ async function createApprovalServerFixture() {
 }
 
 describe('approval routes', () => {
-  it('approves and executes a pending command', async () => {
+  it('approves, executes, and resumes a pending task', async () => {
     const fixture = await createApprovalServerFixture()
 
     try {
       const approval = await fixture.createApproval(
-        `node -e "console.log('route-approval-ok')"`,
+        `node -e ""`,
       )
 
       const response = await fixture.app.inject({
@@ -94,18 +124,24 @@ describe('approval routes', () => {
 
       expect(body.approval.status).toBe('approved')
       expect(body.result.ok).toBe(true)
-      expect(body.result.stdout).toContain('route-approval-ok')
+      expect(body.result.stdout).toBe('')
+      expect(fixture.app.forgeagent.taskService.get(fixture.task.id).status).toBe(
+        'completed',
+      )
 
       expect(fixture.db.state.events).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
-            type: 'tool.output',
+            type: 'tool.finished',
           }),
           expect.objectContaining({
-            type: 'tool.finished',
+            type: 'task.completed',
           }),
         ]),
       )
+      expect(
+        fixture.db.state.events.filter(event => event.type === 'tool.output'),
+      ).toEqual([])
     } finally {
       await fixture.cleanup()
     }
@@ -134,10 +170,20 @@ describe('approval routes', () => {
       expect(body.approval.status).toBe('rejected')
       expect(body.result.rejected).toBe(true)
       expect(body.result.reason).toBe('not needed')
+      expect(fixture.app.forgeagent.taskService.get(fixture.task.id).status).toBe(
+        'completed',
+      )
 
       expect(
         fixture.db.state.events.filter(event => event.type === 'tool.output'),
       ).toEqual([])
+      expect(fixture.db.state.events).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'task.completed',
+          }),
+        ]),
+      )
     } finally {
       await fixture.cleanup()
     }
