@@ -128,12 +128,34 @@ export class GitWorkspaceSnapshotService {
       await writeFile(targetPath, file.content)
     }
 
-    const status = await this.gitClient.output(['status', '--porcelain'], {
-      cwd: worktreePath,
-    })
+    const status = await this.gitClient.output(
+      ['status', '--porcelain'],
+      { cwd: worktreePath },
+    )
 
-    if (status) {
+    if (status.trim()) {
       await this.gitClient.run(['add', '-A', '--'], { cwd: worktreePath })
+      await this.gitClient.run(
+        [
+          '-c',
+          'user.name=ForgeAgent',
+          '-c',
+          'user.email=forgeagent@localhost',
+          'commit',
+          '--no-verify',
+          '-m',
+          'forgeagent: workspace snapshot',
+        ],
+        { cwd: worktreePath },
+      )
+    } else {
+      const placeholderPath = join(worktreePath, '.forgeagent-placeholder')
+      const placeholderContent = `# This placeholder file ensures the worktree has an initial commit.\n# It can be safely removed after applying changes.\n`
+
+      await writeFile(placeholderPath, placeholderContent)
+      await this.gitClient.run(['add', '--', '.forgeagent-placeholder'], {
+        cwd: worktreePath,
+      })
       await this.gitClient.run(
         [
           '-c',
