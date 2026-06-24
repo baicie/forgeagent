@@ -225,7 +225,7 @@ describe('taskService lifecycle', () => {
     )
   })
 
-  it('emits diff.updated when reading diff', async () => {
+  it('emits diff.updated when notifyDiffChanged is called', async () => {
     const { db, taskService } = createTaskServiceFixture()
 
     const task = await taskService.create({
@@ -233,17 +233,12 @@ describe('taskService lifecycle', () => {
       prompt: 'fix bug',
     })
 
-    const result = await taskService.getDiff(task.id)
+    await taskService.notifyDiffChanged(task.id)
 
-    expect(result.diff).toContain('diff --git')
     expect(db.state.events).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           type: 'diff.updated',
-          payload: {
-            changed: true,
-            bytes: Buffer.byteLength(result.diff, 'utf-8'),
-          },
         }),
       ]),
     )

@@ -76,6 +76,10 @@ export async function applyPatchTool(
     changedFiles.push(normalizeToolPath(target.relativePath))
   }
 
+  if (changedFiles.length > 0) {
+    await context.taskService.notifyDiffChanged(context.task.id)
+  }
+
   return {
     changedFiles: [...new Set(changedFiles)],
   }

@@ -28,7 +28,7 @@
     "@forgeagent/core": "workspace:*",
     "@forgeagent/runner": "workspace:*",
     "commander": "^15.0.0",
-    "dotenv": "^16.5.0",
+    "dotenv": "^17.4.2",
     "picocolors": "^1.1.1"
   },
   "devDependencies": {

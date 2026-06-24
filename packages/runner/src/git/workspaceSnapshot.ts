@@ -141,6 +141,7 @@ export class GitWorkspaceSnapshotService {
           '-c',
           'user.email=forgeagent@localhost',
           'commit',
+          '--no-verify',
           '-m',
           'forgeagent: workspace snapshot',
         ],

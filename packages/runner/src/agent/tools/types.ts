@@ -11,6 +11,7 @@ export interface ToolTaskService {
   start: (id: string, reason?: string) => Promise<Task>
   waitForApproval: (id: string, reason?: string) => Promise<Task>
   getDiff: (id: string) => Promise<{ taskId: string; diff: string }>
+  notifyDiffChanged: (id: string) => Promise<void>
 }
 
 export interface ToolApprovalService {

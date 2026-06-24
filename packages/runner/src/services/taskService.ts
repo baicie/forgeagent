@@ -251,7 +251,7 @@ export class TaskService {
     return task
   }
 
-  async getDiff(id: string): Promise<{ taskId: string; diff: string }> {
+  async notifyDiffChanged(id: string): Promise<void> {
     const task = this.get(id)
     const diff = await this.gitDiffService.getDiff(task.worktreePath)
 
@@ -263,6 +263,11 @@ export class TaskService {
         bytes: Buffer.byteLength(diff, 'utf-8'),
       },
     })
+  }
+
+  async getDiff(id: string): Promise<{ taskId: string; diff: string }> {
+    const task = this.get(id)
+    const diff = await this.gitDiffService.getDiff(task.worktreePath)
 
     await this.auditService.append({
       taskId: task.id,
