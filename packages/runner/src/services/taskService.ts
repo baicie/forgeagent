@@ -4,6 +4,7 @@ import {
   createForgeAgentError,
 } from '@forgeagent/core'
 import { randomUUID } from 'node:crypto'
+import { access } from 'node:fs/promises'
 import type { RunnerConfig } from '../config'
 import type { RunnerDb } from '../db'
 import type { GitCommitService } from '../git/commit'
@@ -29,6 +30,9 @@ export interface CommitTaskInput {
   message?: string
 }
 
+const WORKTREE_UNAVAILABLE_HINT =
+  'The task worktree may have been removed. Discard this task or create a new task.'
+
 function createDefaultCommitMessage(task: Task): string {
   const prompt = task.prompt.trim().replace(/\s+/g, ' ').slice(0, 72)
 
@@ -39,6 +43,16 @@ function normalizeCommitMessage(task: Task, message?: string): string {
   const normalized = message?.trim()
 
   return normalized || createDefaultCommitMessage(task)
+}
+
+function readErrorDetails(error: unknown): unknown {
+  return error && typeof error === 'object' && 'details' in error
+    ? (error as { details?: unknown }).details
+    : undefined
+}
+
+function readErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 export class TaskService {
@@ -253,7 +267,7 @@ export class TaskService {
 
   async notifyDiffChanged(id: string): Promise<void> {
     const task = this.get(id)
-    const diff = await this.gitDiffService.getDiff(task.worktreePath)
+    const diff = await this.readTaskDiff(task)
 
     await this.eventService.append({
       taskId: task.id,
@@ -267,7 +281,7 @@ export class TaskService {
 
   async getDiff(id: string): Promise<{ taskId: string; diff: string }> {
     const task = this.get(id)
-    const diff = await this.gitDiffService.getDiff(task.worktreePath)
+    const diff = await this.readTaskDiff(task)
 
     await this.auditService.append({
       taskId: task.id,
@@ -405,6 +419,45 @@ export class TaskService {
 
   async cancel(id: string): Promise<Task> {
     return this.transition(id, 'cancelled', 'Task cancelled')
+  }
+
+  private async readTaskDiff(task: Task): Promise<string> {
+    if (task.status === 'discarded') {
+      return ''
+    }
+
+    try {
+      await access(task.worktreePath)
+    } catch (error) {
+      throw createForgeAgentError(
+        'INVALID_GIT_REPO',
+        `Task worktree is not accessible: ${task.worktreePath}`,
+        {
+          taskId: task.id,
+          status: task.status,
+          worktreePath: task.worktreePath,
+          cause: readErrorMessage(error),
+          hint: WORKTREE_UNAVAILABLE_HINT,
+        },
+      )
+    }
+
+    try {
+      return await this.gitDiffService.getDiff(task.worktreePath)
+    } catch (error) {
+      throw createForgeAgentError(
+        'INVALID_GIT_REPO',
+        `Task worktree is not a usable Git worktree: ${task.worktreePath}`,
+        {
+          taskId: task.id,
+          status: task.status,
+          worktreePath: task.worktreePath,
+          cause: readErrorMessage(error),
+          details: readErrorDetails(error),
+          hint: WORKTREE_UNAVAILABLE_HINT,
+        },
+      )
+    }
   }
 
   private assertCanDeliver(task: Task, status: 'applied' | 'committed'): void {
