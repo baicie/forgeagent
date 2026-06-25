@@ -161,4 +161,32 @@ describe('contextPackBuilder', () => {
     expect(pack.content.length).toBeLessThanOrEqual(3000)
     expect(pack.truncated).toBe(true)
   })
+
+  it('ignores .agents directory in relevant files', async () => {
+    const task = createTask(gitRoot)
+    const workspace = createWorkspace(gitRoot)
+
+    await taskMemoryService.initializeTaskMemory(task)
+
+    const builder = new ContextPackBuilder(
+      loadRunnerConfig({ dataDir, contextPackMaxChars: 50_000 }),
+      taskMemoryService,
+      {
+        getDiff: vi.fn(async () => ''),
+      } as unknown as GitDiffService,
+      {
+        maxChars: 50_000,
+        maxRelevantFiles: 200,
+      },
+    )
+
+    const pack = await builder.build({ task, workspace })
+
+    const relevantFilesSection = pack.sections.find(
+      s => s.name === 'Relevant Files',
+    )
+
+    // .agents files should not appear in Relevant Files (they go in Project Rules)
+    expect(relevantFilesSection?.content ?? '').not.toContain('.agents/')
+  })
 })

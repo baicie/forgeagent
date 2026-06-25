@@ -1,5 +1,151 @@
 import type { TaskEvent } from '@forgeagent/core'
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function truncatePromptText(text: string, maxChars: number): string {
+  if (maxChars <= 0) return ''
+
+  if (text.length <= maxChars) {
+    return text
+  }
+
+  const suffix = '\n...<truncated>'
+
+  if (maxChars <= suffix.length) {
+    return text.slice(0, maxChars)
+  }
+
+  return `${text.slice(0, maxChars - suffix.length)}${suffix}`
+}
+
+function stringifyForPrompt(value: unknown): string {
+  const json = JSON.stringify(value, null, 2)
+
+  return json === undefined ? String(value) : json
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+    ? (value as Record<string, unknown>)
+    : {}
+}
+
+function readString(
+  record: Record<string, unknown>,
+  key: string,
+): string | undefined {
+  const value = record[key]
+
+  return typeof value === 'string' ? value : undefined
+}
+
+function readBoolean(
+  record: Record<string, unknown>,
+  key: string,
+): boolean | undefined {
+  const value = record[key]
+
+  return typeof value === 'boolean' ? value : undefined
+}
+
+function readNumber(
+  record: Record<string, unknown>,
+  key: string,
+): number | undefined {
+  const value = record[key]
+
+  return typeof value === 'number' ? value : undefined
+}
+
+// ---------------------------------------------------------------------------
+// Event sanitizers
+// ---------------------------------------------------------------------------
+
+function sanitizeToolFinishedPayload(
+  payload: unknown,
+): Record<string, unknown> {
+  const record = asRecord(payload)
+  const result = asRecord(record.result)
+  const toolName =
+    readString(record, 'toolName') ?? readString(result, 'toolName')
+
+  if (toolName === 'run_command') {
+    const stdout = readString(result, 'stdout')
+    const stderr = readString(result, 'stderr')
+
+    return {
+      toolName,
+      command: readString(record, 'command') ?? readString(result, 'command'),
+      ok: readBoolean(record, 'ok') ?? readBoolean(result, 'ok'),
+      exitCode: readNumber(result, 'exitCode'),
+      timedOut: readBoolean(result, 'timedOut'),
+      error: readString(result, 'error'),
+      stdoutBytes: stdout ? new TextEncoder().encode(stdout).length : 0,
+      stderrBytes: stderr ? new TextEncoder().encode(stderr).length : 0,
+      note: 'Full command output is stored in test_results.md, not repeated in event history.',
+    }
+  }
+
+  if (toolName === 'get_diff') {
+    const diff = readString(result, 'diff')
+
+    return {
+      toolName,
+      changed: Boolean(diff?.trim()),
+      diffBytes: diff ? new TextEncoder().encode(diff).length : undefined,
+      note: 'Full diff is stored in context_pack.md or available via task diff.',
+    }
+  }
+
+  return {
+    toolName,
+    ok: readBoolean(record, 'ok') ?? readBoolean(result, 'ok'),
+    error: readString(result, 'error') ?? readString(record, 'error'),
+    resultSummary: truncatePromptText(stringifyForPrompt(result), 1000),
+  }
+}
+
+function sanitizeEventForHistory(
+  event: TaskEvent,
+): { type: string; payload: unknown; createdAt: string } | undefined {
+  if (event.type === 'tool.output') {
+    return undefined
+  }
+
+  if (event.type === 'tool.finished') {
+    return {
+      type: event.type,
+      payload: sanitizeToolFinishedPayload(event.payload),
+      createdAt: event.createdAt,
+    }
+  }
+
+  if (
+    [
+      'agent.message',
+      'tool.started',
+      'approval.required',
+      'approval.resolved',
+      'diff.updated',
+      'task.status',
+    ].includes(event.type)
+  ) {
+    return {
+      type: event.type,
+      payload: event.payload,
+      createdAt: event.createdAt,
+    }
+  }
+
+  return undefined
+}
+
+// ---------------------------------------------------------------------------
+// Prompts
+// ---------------------------------------------------------------------------
+
 export function createSystemPrompt(): string {
   return `你是 ForgeAgent，一个本地优先、私有优先、审批优先的 Coding Agent。
 
@@ -99,31 +245,25 @@ export function createTaskEventHistoryPrompt(input: {
   events: TaskEvent[]
   maxChars: number
 }): string {
-  const usefulEvents = input.events
-    .filter(event =>
-      [
-        'agent.message',
-        'tool.started',
-        'tool.finished',
-        'approval.required',
-        'approval.resolved',
-        'diff.updated',
-        'task.status',
-      ].includes(event.type),
+  const sanitized = input.events
+    .map(sanitizeEventForHistory)
+    .filter(
+      (event): event is { type: string; payload: unknown; createdAt: string } =>
+        event !== undefined,
     )
-    .map(event => ({
-      type: event.type,
-      payload: event.payload,
-      createdAt: event.createdAt,
-    }))
 
-  const serialized = JSON.stringify(usefulEvents, null, 2)
+  const serialized = stringifyForPrompt(sanitized)
   const truncated =
     serialized.length > input.maxChars
       ? `${serialized.slice(-input.maxChars)}\n...<history truncated from head>`
       : serialized
 
   return `以下是这个 task 已经发生过的事件历史。你需要基于这些历史继续执行，不要重复已经完成的工具调用，尤其是已经审批并执行完成的 run_command。
+
+注意：
+- tool.output 不会进入历史。
+- run_command 的 stdout/stderr 不会进入历史，完整结果请看 test_results.md。
+- diff 详情请看 context_pack.md 或 task diff。
 
 事件历史：
 ${truncated}`
@@ -136,21 +276,6 @@ export function createJsonRetryPrompt(errorMessage: string): string {
 ${errorMessage}
 
 请重新输出严格 JSON。不要输出 Markdown。不要输出任何 JSON 之外的内容。`
-}
-
-export function createToolResultPrompt(input: {
-  toolName: string
-  result: unknown
-  truncated: boolean
-}): string {
-  return `工具 ${input.toolName} 执行完成。
-
-结果如下：
-${JSON.stringify(input.result, null, 2)}
-
-${input.truncated ? '注意：工具输出已被截断。' : ''}
-
-请继续下一步。`
 }
 
 export function createContextPackPrompt(contextPack: string): string {
@@ -174,7 +299,7 @@ export function createCompactToolResultPrompt(input: {
   truncated: boolean
   maxChars: number
 }): string {
-  const serialized = JSON.stringify(input.result, null, 2)
+  const serialized = stringifyForPrompt(input.result)
   const suffix = '\n...<tool result truncated>'
   const compact =
     serialized.length > input.maxChars

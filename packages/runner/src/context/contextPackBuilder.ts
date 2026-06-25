@@ -61,6 +61,7 @@ const DEFAULT_VALIDATION_COMMANDS = [
 
 const IGNORED_DIRS = new Set([
   '.git',
+  '.agents',
   'node_modules',
   'dist',
   'build',

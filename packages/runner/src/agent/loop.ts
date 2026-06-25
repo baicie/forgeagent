@@ -33,7 +33,7 @@ import { createAgentRunContext } from './context'
 export const DEFAULT_MAX_AGENT_STEPS = 30
 export const DEFAULT_MAX_TOOL_OUTPUT_CHARS = 20_000
 export const DEFAULT_JSON_RETRY_LIMIT = 2
-export const DEFAULT_MAX_EVENT_HISTORY_CHARS = 30_000
+export const DEFAULT_MAX_EVENT_HISTORY_CHARS = 8_000
 export const DEFAULT_COMPACT_TOOL_RESULT_CHARS = 8_000
 
 export interface AgentLoopOptions {
