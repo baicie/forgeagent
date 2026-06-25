@@ -10,6 +10,12 @@ const CommitTaskBodySchema = z
   })
   .default({})
 
+const CleanupTasksBodySchema = z
+  .object({
+    taskId: z.string().min(1).optional(),
+  })
+  .default({})
+
 export function registerTaskRoutes(
   app: FastifyInstance,
   context: RunnerContext,
@@ -17,6 +23,14 @@ export function registerTaskRoutes(
   app.get('/api/tasks', async () => ({
     items: context.taskService.list(),
   }))
+
+  app.get('/api/tasks/cleanup/preview', async request => {
+    const query = request.query as { taskId?: string }
+
+    return context.taskService.previewCleanup({
+      taskId: query.taskId,
+    })
+  })
 
   app.get<{
     Params: { id: string }
@@ -109,8 +123,9 @@ export function registerTaskRoutes(
     return reply.status(204).send()
   })
 
-  app.post('/api/tasks/cleanup', async () => {
-    const result = await context.taskService.deleteAll()
+  app.post('/api/tasks/cleanup', async request => {
+    const body = parseBody(CleanupTasksBodySchema, request.body ?? {})
+    const result = await context.taskService.deleteAll(body)
 
     return result
   })

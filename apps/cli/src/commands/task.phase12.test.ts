@@ -61,6 +61,19 @@ function createClient(): RunnerApiClient {
       deleted: 0,
       failed: 0,
     })),
+    getTaskCleanupPreview: vi.fn(async () => ({
+      count: 1,
+      estimatedBytes: 1024,
+      tasks: [
+        {
+          id: 'task_1',
+          status: 'completed',
+          worktreePath: '/tmp/worktree',
+          estimatedBytes: 1024,
+        },
+      ],
+    })),
+    deleteTask: vi.fn(async () => undefined),
   } as unknown as RunnerApiClient
 }
 
@@ -136,5 +149,41 @@ describe('task command phase 12', () => {
 
     expect(client.cleanupTasks).toHaveBeenCalled()
     expect(logSpy.mock.calls.flat().join('\n')).toContain('deleted: 0')
+  })
+
+  it('prints cleanup preview without confirmation', async () => {
+    const client = createClient()
+    const program = createProgram(createTaskCommand(() => client))
+
+    await program.parseAsync(['node', 'test', 'task', 'cleanup'])
+
+    expect(client.getTaskCleanupPreview).toHaveBeenCalledWith({
+      taskId: undefined,
+    })
+    expect(client.cleanupTasks).not.toHaveBeenCalled()
+    expect(logSpy.mock.calls.flat().join('\n')).toContain(
+      'estimated reclaimable space',
+    )
+    expect(logSpy.mock.calls.flat().join('\n')).toContain('Re-run with --yes')
+  })
+
+  it('cleans up one task with confirmation', async () => {
+    const client = createClient()
+    const program = createProgram(createTaskCommand(() => client))
+
+    await program.parseAsync([
+      'node',
+      'test',
+      'task',
+      'cleanup',
+      '--task',
+      'task_1',
+      '--yes',
+    ])
+
+    expect(client.getTaskCleanupPreview).toHaveBeenCalledWith({
+      taskId: 'task_1',
+    })
+    expect(client.deleteTask).toHaveBeenCalledWith('task_1')
   })
 })

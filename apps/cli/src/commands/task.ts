@@ -1,4 +1,5 @@
 import { Command } from 'commander'
+import { formatBytes } from '@forgeagent/core'
 import pc from 'picocolors'
 import type { RunnerApiClientFactory } from '../client/runnerClient'
 import { createRunnerApiClient } from '../client/runnerClient'
@@ -80,27 +81,61 @@ export function createTaskCommand(
 
   command
     .command('cleanup')
-    .description('Delete all task worktrees and task records')
+    .description('Delete task worktrees and task records')
     .option('--yes', 'Skip confirmation')
-    .action(async (actionOptions: { yes?: boolean }) => {
-      const client = clientFactory()
+    .option('--task <taskId>', 'Cleanup one task only')
+    .action(
+      async (actionOptions: { yes?: boolean; task?: string }) => {
+        const client = clientFactory()
+        const preview = await client.getTaskCleanupPreview({
+          taskId: actionOptions.task,
+        })
 
-      if (!actionOptions.yes) {
+        const target = actionOptions.task
+          ? `task ${actionOptions.task}`
+          : 'all tasks'
+
         console.log(
           pc.yellow(
-            'This will delete all task worktrees and task records managed by ForgeAgent.',
+            `This will delete ${target} managed by ForgeAgent.`,
           ),
         )
-        console.log(pc.dim('Re-run with --yes to confirm.'))
-        return
-      }
+        console.log(`  tasks: ${preview.count}`)
+        console.log(`  estimated reclaimable space: ${formatBytes(preview.estimatedBytes)}`)
 
-      const result = await client.cleanupTasks()
+        if (preview.tasks.length > 0) {
+          console.log('')
+          console.log(pc.dim('Targets:'))
+          for (const task of preview.tasks) {
+            console.log(
+              pc.dim(
+                `  ${task.id} ${task.status} ${formatBytes(task.estimatedBytes)} ${task.worktreePath}`,
+              ),
+            )
+          }
+        }
 
-      console.log(pc.green('Task cleanup completed'))
-      console.log(`  deleted: ${result.deleted}`)
-      console.log(`  failed: ${result.failed}`)
-    })
+        if (!actionOptions.yes) {
+          console.log('')
+          console.log(pc.dim('Re-run with --yes to confirm.'))
+          return
+        }
+
+        if (actionOptions.task) {
+          await client.deleteTask(actionOptions.task)
+          console.log(pc.green('Task cleanup completed'))
+          console.log(`  deleted: 1`)
+          console.log(`  failed: 0`)
+          return
+        }
+
+        const result = await client.cleanupTasks()
+
+        console.log(pc.green('Task cleanup completed'))
+        console.log(`  deleted: ${result.deleted}`)
+        console.log(`  failed: ${result.failed}`)
+      },
+    )
 
   command
     .command('watch')

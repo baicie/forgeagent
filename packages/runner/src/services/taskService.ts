@@ -16,6 +16,7 @@ import type {
   GitWorkspaceSnapshotService,
   WorkspaceSnapshot,
 } from '../git/workspaceSnapshot'
+import { estimatePathSize } from '../storage/size'
 import type { DiskSpaceService } from '../storage/disk'
 import type { AuditService } from './auditService'
 import type { EventService } from './eventService'
@@ -28,6 +29,23 @@ export interface CreateTaskInput {
 
 export interface CommitTaskInput {
   message?: string
+}
+
+export interface CleanupTaskPreviewItem {
+  id: string
+  status: TaskStatus
+  worktreePath: string
+  estimatedBytes: number
+}
+
+export interface CleanupTasksInput {
+  taskId?: string
+}
+
+export interface CleanupTasksPreview {
+  count: number
+  estimatedBytes: number
+  tasks: CleanupTaskPreviewItem[]
 }
 
 function createDefaultCommitMessage(task: Task): string {
@@ -481,8 +499,10 @@ export class TaskService {
     })
   }
 
-  async deleteAll(): Promise<{ deleted: number; failed: number }> {
-    const tasks = this.list()
+  async deleteAll(
+    input: CleanupTasksInput = {},
+  ): Promise<{ deleted: number; failed: number }> {
+    const tasks = this.getCleanupTargets(input)
     let deleted = 0
     let failed = 0
 
@@ -496,6 +516,36 @@ export class TaskService {
     }
 
     return { deleted, failed }
+  }
+
+  private getCleanupTargets(input: CleanupTasksInput = {}): Task[] {
+    if (input.taskId) {
+      return [this.get(input.taskId)]
+    }
+
+    return [...this.list()]
+  }
+
+  async previewCleanup(
+    input: CleanupTasksInput = {},
+  ): Promise<CleanupTasksPreview> {
+    const tasks = this.getCleanupTargets(input)
+    const items: CleanupTaskPreviewItem[] = []
+
+    for (const task of tasks) {
+      items.push({
+        id: task.id,
+        status: task.status,
+        worktreePath: task.worktreePath,
+        estimatedBytes: await estimatePathSize(task.worktreePath),
+      })
+    }
+
+    return {
+      count: items.length,
+      estimatedBytes: items.reduce((sum, item) => sum + item.estimatedBytes, 0),
+      tasks: items,
+    }
   }
 
   private assertCanDeliver(task: Task, status: 'applied' | 'committed'): void {

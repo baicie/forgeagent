@@ -142,4 +142,69 @@ describe('runner api client', () => {
       code: 'RUNNER_UNAVAILABLE',
     })
   })
+
+  it('gets cleanup preview', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          count: 1,
+          estimatedBytes: 1024,
+          tasks: [
+            {
+              id: 'task_1',
+              status: 'completed',
+              worktreePath: '/tmp/worktree',
+              estimatedBytes: 1024,
+            },
+          ],
+        }),
+      })),
+    )
+
+    const client = new RunnerApiClient('http://127.0.0.1:17890')
+    const result = await client.getTaskCleanupPreview({
+      taskId: 'task_1',
+    })
+
+    expect(result.count).toBe(1)
+    expect(fetch).toHaveBeenCalledWith(
+      'http://127.0.0.1:17890/api/tasks/cleanup/preview?taskId=task_1',
+      expect.objectContaining({
+        method: 'GET',
+      }),
+    )
+  })
+
+  it('cleans up tasks with JSON body', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          deleted: 1,
+          failed: 0,
+        }),
+      })),
+    )
+
+    const client = new RunnerApiClient()
+    const result = await client.cleanupTasks({
+      taskId: 'task_1',
+    })
+
+    expect(result.deleted).toBe(1)
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/tasks/cleanup',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          taskId: 'task_1',
+        }),
+      }),
+    )
+  })
 })

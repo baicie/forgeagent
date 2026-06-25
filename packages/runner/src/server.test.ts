@@ -473,6 +473,75 @@ describe('runner server', { timeout: 20000 }, () => {
     }
   })
 
+  it('previews and cleans up one task', async () => {
+    const app = await createTestServer()
+    const fixture = await createGitFixture()
+
+    try {
+      const workspaceResponse = await app.inject({
+        method: 'POST',
+        url: '/api/workspaces',
+        payload: {
+          repoPath: fixture.repoPath,
+        },
+      })
+
+      const workspace = workspaceResponse.json() as { id: string }
+
+      const taskResponse = await app.inject({
+        method: 'POST',
+        url: '/api/tasks',
+        payload: {
+          workspaceId: workspace.id,
+          prompt: 'fix bug',
+        },
+      })
+
+      const task = taskResponse.json() as {
+        id: string
+        worktreePath: string
+      }
+
+      await writeFile(join(task.worktreePath, 'phase12.txt'), 'hello\n')
+
+      const previewResponse = await app.inject({
+        method: 'GET',
+        url: `/api/tasks/cleanup/preview?taskId=${task.id}`,
+      })
+
+      expect(previewResponse.statusCode).toBe(200)
+      expect(previewResponse.json()).toMatchObject({
+        count: 1,
+        tasks: [
+          {
+            id: task.id,
+            worktreePath: task.worktreePath,
+          },
+        ],
+      })
+      expect(previewResponse.json().estimatedBytes).toBeGreaterThan(0)
+
+      const cleanupResponse = await app.inject({
+        method: 'POST',
+        url: '/api/tasks/cleanup',
+        payload: {
+          taskId: task.id,
+        },
+      })
+
+      expect(cleanupResponse.statusCode).toBe(200)
+      expect(cleanupResponse.json()).toEqual({
+        deleted: 1,
+        failed: 0,
+      })
+
+      await expect(access(task.worktreePath)).rejects.toThrow()
+    } finally {
+      await fixture.cleanup()
+      await app.close()
+    }
+  }, 20000)
+
   it('returns 400 for invalid workspace body', async () => {
     const app = await createTestServer()
 

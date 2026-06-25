@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
+import { formatBytes } from '@forgeagent/core'
 import type { RunnerApiClient } from '../api/client'
 import type { Task, Workspace } from '../types'
+import { ErrorBanner } from '../components/ErrorBanner'
 import { WorkspacePicker } from '../components/WorkspacePicker'
 
 export interface HomePageProps {
@@ -15,7 +17,7 @@ export function HomePage(props: HomePageProps) {
   const [workspaceName, setWorkspaceName] = useState('')
   const [workspaceId, setWorkspaceId] = useState('')
   const [prompt, setPrompt] = useState('')
-  const [error, setError] = useState<string | undefined>()
+  const [error, setError] = useState<unknown>()
   const [loading, setLoading] = useState(false)
   const [cleaningUp, setCleaningUp] = useState(false)
 
@@ -45,7 +47,7 @@ export function HomePage(props: HomePageProps) {
         setWorkspaceId('')
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(err)
     } finally {
       setLoading(false)
     }
@@ -74,7 +76,7 @@ export function HomePage(props: HomePageProps) {
       setWorkspaceName('')
       await load(workspace.id)
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(err)
     } finally {
       setLoading(false)
     }
@@ -103,7 +105,7 @@ export function HomePage(props: HomePageProps) {
       setPrompt('')
       props.onOpenTask(task.id)
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(err)
     } finally {
       setLoading(false)
     }
@@ -111,27 +113,32 @@ export function HomePage(props: HomePageProps) {
 
   const cleanupAll = async () => {
     if (tasks.length === 0) return
-    if (
-      !window.confirm(
-        `确定要删除所有 ${tasks.length} 个任务吗？\n\n这将删除所有 worktree 和关联记录，无法撤销。`,
-      )
-    ) {
-      return
-    }
 
     setCleaningUp(true)
     setError(undefined)
 
     try {
+      const preview = await props.client.getTaskCleanupPreview()
+
+      if (
+        !window.confirm(
+          `确定要删除所有 ${preview.count} 个任务吗？\n\n预计释放空间：${formatBytes(
+            preview.estimatedBytes,
+          )}\n\n这将删除所有 worktree 和关联记录，无法撤销。`,
+        )
+      ) {
+        return
+      }
+
       const result = await props.client.cleanupTasks()
 
       if (result.failed > 0) {
-        setError(`删除了 ${result.deleted} 个任务，${result.failed} 个失败`)
+        setError(new Error(`删除了 ${result.deleted} 个任务，${result.failed} 个失败`))
       }
 
       await load()
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(err)
     } finally {
       setCleaningUp(false)
     }
@@ -207,7 +214,7 @@ export function HomePage(props: HomePageProps) {
           </div>
         </div>
 
-        {error ? <div className="error">{error}</div> : null}
+        {error ? <ErrorBanner error={error} /> : null}
 
         <div className="task-list">
           {tasks.map(task => (

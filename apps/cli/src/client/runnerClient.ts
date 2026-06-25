@@ -22,6 +22,23 @@ export interface CommitTaskInput {
   message?: string
 }
 
+export interface CleanupTasksInput {
+  taskId?: string
+}
+
+export interface CleanupTaskPreviewItem {
+  id: string
+  status: string
+  worktreePath: string
+  estimatedBytes: number
+}
+
+export interface CleanupTasksPreview {
+  count: number
+  estimatedBytes: number
+  tasks: CleanupTaskPreviewItem[]
+}
+
 export interface CleanupTasksResult {
   deleted: number
   failed: number
@@ -207,9 +224,28 @@ export class RunnerApiClient {
     })
   }
 
-  async cleanupTasks(): Promise<CleanupTasksResult> {
+  async deleteTask(id: string): Promise<void> {
+    await this.request(`/api/tasks/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    })
+  }
+
+  async getTaskCleanupPreview(
+    input: CleanupTasksInput = {},
+  ): Promise<CleanupTasksPreview> {
+    const query = input.taskId
+      ? `?taskId=${encodeURIComponent(input.taskId)}`
+      : ''
+
+    return this.request(`/api/tasks/cleanup/preview${query}`)
+  }
+
+  async cleanupTasks(
+    input: CleanupTasksInput = {},
+  ): Promise<CleanupTasksResult> {
     return this.request('/api/tasks/cleanup', {
       method: 'POST',
+      body: input,
     })
   }
 

@@ -1,6 +1,7 @@
 export * from './approval'
 export * from './audit'
 export * from './error'
+export * from './errorPresentation'
 export * from './event'
 export * from './model'
 export * from './runner'

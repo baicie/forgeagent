@@ -300,4 +300,64 @@ describe('runner api client', () => {
       }),
     )
   })
+
+  it('gets cleanup preview', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers({
+        'content-type': 'application/json',
+      }),
+      json: async () => ({
+        count: 1,
+        estimatedBytes: 1024,
+        tasks: [
+          {
+            id: 'task_1',
+            status: 'completed',
+            worktreePath: '/tmp/worktree',
+            estimatedBytes: 1024,
+          },
+        ],
+      }),
+    }))
+
+    vi.stubGlobal('fetch', fetchMock)
+
+    const client = new RunnerApiClient('http://127.0.0.1:17890')
+    const result = await client.getTaskCleanupPreview({
+      taskId: 'task_1',
+    })
+
+    expect(result.count).toBe(1)
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://127.0.0.1:17890/api/tasks/cleanup/preview?taskId=task_1',
+      expect.objectContaining({
+        method: 'GET',
+      }),
+    )
+  })
+
+  it('deletes one task through runner api', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 204,
+      statusText: 'No Content',
+      headers: new Headers(),
+      text: async () => '',
+    }))
+
+    vi.stubGlobal('fetch', fetchMock)
+
+    const client = new RunnerApiClient('http://127.0.0.1:17890')
+    await client.deleteTask('task_1')
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://127.0.0.1:17890/api/tasks/task_1',
+      expect.objectContaining({
+        method: 'DELETE',
+      }),
+    )
+  })
 })

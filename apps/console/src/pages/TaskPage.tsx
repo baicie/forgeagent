@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
+import { formatBytes } from '@forgeagent/core'
 import type { RunnerApiClient } from '../api/client'
 import { mergeTaskEvents, subscribeTaskEvents } from '../api/events'
 import { ApprovalPanel } from '../components/ApprovalPanel'
 import { DiffViewer } from '../components/DiffViewer'
+import { ErrorBanner } from '../components/ErrorBanner'
 import { TaskTimeline } from '../components/TaskTimeline'
 import { ToolCallView } from '../components/ToolCallView'
 import type { DiffResult, Task, TaskEvent, Workspace } from '../types'
@@ -18,7 +20,7 @@ export function TaskPage(props: TaskPageProps) {
   const [workspace, setWorkspace] = useState<Workspace | undefined>()
   const [events, setEvents] = useState<TaskEvent[]>([])
   const [diff, setDiff] = useState<DiffResult | undefined>()
-  const [error, setError] = useState<string | undefined>()
+  const [error, setError] = useState<unknown>()
   const [notice, setNotice] = useState<string | undefined>()
   const [busy, setBusy] = useState(false)
   const [commitMessage, setCommitMessage] = useState('')
@@ -32,7 +34,7 @@ export function TaskPage(props: TaskPageProps) {
     try {
       await action()
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(err)
     } finally {
       setBusy(false)
     }
@@ -46,7 +48,7 @@ export function TaskPage(props: TaskPageProps) {
       setTask(nextTask)
       setWorkspace(await props.client.getWorkspace(nextTask.workspaceId))
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(err)
     }
   }
 
@@ -56,7 +58,7 @@ export function TaskPage(props: TaskPageProps) {
     try {
       setDiff(await props.client.getTaskDiff(props.taskId))
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(err)
     }
   }
 
@@ -156,15 +158,21 @@ export function TaskPage(props: TaskPageProps) {
   }
 
   const deleteTask = async () => {
-    if (
-      !window.confirm(
-        '确定要彻底删除这个任务吗？\n\n这将删除 worktree 和所有关联记录，无法撤销。',
-      )
-    ) {
-      return
-    }
-
     await runAction(async () => {
+      const preview = await props.client.getTaskCleanupPreview({
+        taskId: props.taskId,
+      })
+
+      if (
+        !window.confirm(
+          `确定要彻底删除这个任务吗？\n\n预计释放空间：${formatBytes(
+            preview.estimatedBytes,
+          )}\n\n这将删除 worktree 和所有关联记录，无法撤销。`,
+        )
+      ) {
+        return
+      }
+
       await props.client.deleteTask(props.taskId)
       props.onBack()
     })
@@ -185,7 +193,7 @@ export function TaskPage(props: TaskPageProps) {
         </span>
       </div>
 
-      {error ? <div className="error">{error}</div> : null}
+      {error ? <ErrorBanner error={error} /> : null}
       {notice ? <div className="notice">{notice}</div> : null}
 
       <section className="panel">

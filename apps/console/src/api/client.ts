@@ -24,6 +24,23 @@ export interface RejectApprovalInput {
   reason?: string
 }
 
+export interface CleanupTasksInput {
+  taskId?: string
+}
+
+export interface CleanupTaskPreviewItem {
+  id: string
+  status: string
+  worktreePath: string
+  estimatedBytes: number
+}
+
+export interface CleanupTasksPreview {
+  count: number
+  estimatedBytes: number
+  tasks: CleanupTaskPreviewItem[]
+}
+
 export class RunnerApiError extends Error {
   readonly code: string
   readonly details?: unknown
@@ -156,10 +173,23 @@ export class RunnerApiClient {
     })
   }
 
-  async cleanupTasks(): Promise<{ deleted: number; failed: number }> {
+  async cleanupTasks(
+    input: CleanupTasksInput = {},
+  ): Promise<{ deleted: number; failed: number }> {
     return this.request('/api/tasks/cleanup', {
       method: 'POST',
+      body: input,
     })
+  }
+
+  async getTaskCleanupPreview(
+    input: CleanupTasksInput = {},
+  ): Promise<CleanupTasksPreview> {
+    const query = input.taskId
+      ? `?taskId=${encodeURIComponent(input.taskId)}`
+      : ''
+
+    return this.request(`/api/tasks/cleanup/preview${query}`)
   }
 
   async approveApproval(id: string): Promise<unknown> {
