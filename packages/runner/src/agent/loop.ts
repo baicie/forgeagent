@@ -217,6 +217,7 @@ export class ForgeAgentLoop {
       if (response.final) {
         const latestPlan =
           this.runner.validationService.getPlan(taskId) ?? validationPlan
+        const hasDiff = await this.hasCurrentDiff(taskId)
 
         if (hasAppliedPatch && !hasCheckedDiffAfterChange) {
           messages.push({
@@ -229,28 +230,71 @@ export class ForgeAgentLoop {
 
         if (
           latestPlan &&
-          hasAppliedPatch &&
-          this.runner.validationService.hasCommands(latestPlan) &&
-          !this.runner.validationService.hasPassed(latestPlan)
+          hasDiff &&
+          this.runner.validationService.hasCommands(latestPlan)
         ) {
-          const pendingPlan =
-            await this.runner.validationService.requestNextValidation({
+          if (this.runner.validationService.isWaitingApproval(latestPlan)) {
+            return {
               task: this.runner.taskService.get(taskId),
-              plan: latestPlan,
+              status: 'waiting_approval',
+              finalMessage: 'Validation command is waiting for approval.',
+            }
+          }
+
+          if (
+            this.runner.validationService.requiresFixBeforeValidation(
+              latestPlan,
+            )
+          ) {
+            messages.push({
+              role: 'user',
+              content: createValidationFeedbackPrompt({
+                failureSummary:
+                  this.runner.validationService.summarize(latestPlan)
+                    .failureSummary ?? 'Validation failed.',
+                fixAttempt: latestPlan.fixAttempt,
+                maxFixAttempts: latestPlan.maxFixAttempts,
+              }),
             })
+            continue
+          }
 
-          await this.runner.taskService.waitForApproval(
-            taskId,
-            'Validation command requires approval',
-          )
+          if (
+            !this.runner.validationService.hasPassed(latestPlan) &&
+            this.runner.validationService.shouldRequestValidation(latestPlan)
+          ) {
+            const pendingPlan =
+              await this.runner.validationService.requestNextValidation({
+                task: this.runner.taskService.get(taskId),
+                plan: latestPlan,
+              })
 
-          return {
-            task: this.runner.taskService.get(taskId),
-            status: 'waiting_approval',
-            finalMessage: `Validation approval requested: ${
-              this.runner.validationService.nextPendingCommand(pendingPlan)
-                ?.command ?? ''
-            }`,
+            await this.runner.taskService.waitForApproval(
+              taskId,
+              'Validation command requires approval',
+            )
+
+            return {
+              task: this.runner.taskService.get(taskId),
+              status: 'waiting_approval',
+              finalMessage: `Validation approval requested: ${
+                pendingPlan.results.at(-1)?.command ?? ''
+              }`,
+            }
+          }
+
+          if (
+            !this.runner.validationService.hasPassed(latestPlan) &&
+            !this.runner.validationService.canFinalizeWithFailedValidation(
+              latestPlan,
+            )
+          ) {
+            messages.push({
+              role: 'user',
+              content:
+                '验证尚未通过，不能 final。请根据验证结果继续修复，修复后 get_diff 并重新验证。',
+            })
+            continue
           }
         }
 
@@ -304,20 +348,27 @@ export class ForgeAgentLoop {
         )
       }
 
-      if (action.name === 'apply_patch') {
-        hasAppliedPatch = true
-        hasCheckedDiffAfterChange = false
-      }
-
-      if (action.name === 'get_diff') {
-        hasCheckedDiffAfterChange = true
-      }
-
       const toolResult = await this.executeAction(
         runContext.toolContext,
         action.name,
         action.args,
       )
+
+      if (action.name === 'apply_patch') {
+        hasAppliedPatch = true
+        hasCheckedDiffAfterChange = false
+
+        // If validation failed before, a successful patch resets the plan so
+        // the next final gate can request fresh validation.
+        const plan = this.runner.validationService.getPlan(taskId)
+        if (plan?.status === 'failed') {
+          this.runner.validationService.resetForNextValidation(taskId)
+        }
+      }
+
+      if (action.name === 'get_diff') {
+        hasCheckedDiffAfterChange = true
+      }
 
       const serializedToolResult = this.truncateToolOutput(
         toolResult,
@@ -520,6 +571,19 @@ export class ForgeAgentLoop {
     return {
       value: `${serialized.slice(0, maxChars)}\n...<truncated>`,
       truncated: true,
+    }
+  }
+
+  /**
+   * Check whether the worktree has uncommitted changes.
+   * Used by the final gate to determine whether validation is required.
+   */
+  private async hasCurrentDiff(taskId: string): Promise<boolean> {
+    try {
+      const diff = await this.runner.taskService.getDiff(taskId)
+      return diff.diff.trim().length > 0
+    } catch {
+      return false
     }
   }
 

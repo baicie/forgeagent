@@ -269,6 +269,7 @@ export class ApprovalGate {
       command: approval.command,
       cwd: approval.cwd,
       ok: false,
+      rejected: true,
       approvalId: approval.id,
       error: reason ?? 'Command rejected by user',
     })

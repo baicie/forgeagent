@@ -42,15 +42,18 @@ function summarizeText(text: string | undefined, maxLines = 40): string {
 
 function createFailureSummary(results: ValidationResult[]): string | undefined {
   const failed = results.find(result => result.status === 'failed')
+  const rejected = results.find(result => result.status === 'rejected')
 
-  if (!failed) return undefined
+  const target = failed ?? rejected
+
+  if (!target) return undefined
 
   const chunks = [
-    `Command failed: ${failed.command}`,
-    failed.exitCode !== undefined ? `Exit code: ${failed.exitCode}` : undefined,
-    failed.error ? `Error: ${failed.error}` : undefined,
-    failed.stderr ? `stderr:\n${summarizeText(failed.stderr)}` : undefined,
-    failed.stdout ? `stdout:\n${summarizeText(failed.stdout, 20)}` : undefined,
+    `Command ${target.status}: ${target.command}`,
+    target.exitCode !== undefined ? `Exit code: ${target.exitCode}` : undefined,
+    target.error ? `Error: ${target.error}` : undefined,
+    target.stderr ? `stderr:\n${summarizeText(target.stderr)}` : undefined,
+    target.stdout ? `stdout:\n${summarizeText(target.stdout, 20)}` : undefined,
   ].filter(Boolean)
 
   return chunks.join('\n\n')
@@ -137,12 +140,66 @@ export class ValidationService {
     return plan.commands.length > 0
   }
 
+  /**
+   * Read-only preview of what the validation plan would look like.
+   * Does NOT persist anything or write events/memory.
+   */
+  async previewPlan(input: { task: Task }): Promise<ValidationPlan> {
+    const config = await loadValidationConfig({
+      repoRoot: input.task.worktreePath,
+    })
+
+    const timestamp = now()
+    return ValidationPlanSchema.parse({
+      taskId: input.task.id,
+      commands: normalizeValidationCommands(config.commands),
+      maxFixAttempts: config.maxFixAttempts,
+      fixAttempt: 0,
+      status: config.commands.length > 0 ? 'pending' : 'skipped',
+      results: [],
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+  }
+
   hasPassed(plan: ValidationPlan): boolean {
     return plan.status === 'passed'
   }
 
   hasFailed(plan: ValidationPlan): boolean {
     return plan.status === 'failed'
+  }
+
+  isWaitingApproval(plan: ValidationPlan): boolean {
+    return plan.status === 'waiting_approval'
+  }
+
+  isTerminal(plan: ValidationPlan): boolean {
+    return ['passed', 'failed', 'rejected', 'skipped'].includes(plan.status)
+  }
+
+  shouldRequestValidation(plan: ValidationPlan): boolean {
+    return (
+      this.hasCommands(plan) &&
+      !this.hasPassed(plan) &&
+      plan.status !== 'waiting_approval' &&
+      plan.status !== 'failed' &&
+      plan.status !== 'rejected'
+    )
+  }
+
+  requiresFixBeforeValidation(plan: ValidationPlan): boolean {
+    return plan.status === 'failed' && this.canFixAgain(plan)
+  }
+
+  canFinalizeWithFailedValidation(plan: ValidationPlan): boolean {
+    // Both 'failed' and 'rejected' are terminal failure states — allow
+    // finalization after maxFixAttempts is exhausted (for 'failed') or
+    // immediately (for 'rejected' since the user chose to reject).
+    return (
+      (plan.status === 'failed' || plan.status === 'rejected') &&
+      !this.canFixAgain(plan)
+    )
   }
 
   canFixAgain(plan: ValidationPlan): boolean {
@@ -211,6 +268,7 @@ export class ValidationService {
     command: string
     cwd: string
     ok: boolean
+    rejected?: boolean
     approvalId?: string
     exitCode?: number | null
     timedOut?: boolean
@@ -229,7 +287,7 @@ export class ValidationService {
       ) {
         return {
           ...result,
-          status: input.ok ? 'passed' : 'failed',
+          status: input.rejected ? 'rejected' : input.ok ? 'passed' : 'failed',
           ok: input.ok,
           exitCode: input.exitCode,
           timedOut: input.timedOut,
@@ -243,6 +301,7 @@ export class ValidationService {
       return result
     })
 
+    const hasRejected = results.some(result => result.status === 'rejected')
     const hasFailed = results.some(result => result.status === 'failed')
     const allFinished =
       results.length >= plan.commands.length &&
@@ -250,7 +309,13 @@ export class ValidationService {
         ['passed', 'failed', 'rejected'].includes(result.status),
       )
 
-    const status = hasFailed ? 'failed' : allFinished ? 'passed' : 'pending'
+    const status = hasRejected
+      ? 'rejected'
+      : hasFailed
+        ? 'failed'
+        : allFinished
+          ? 'passed'
+          : 'pending'
 
     const updated: ValidationPlan = {
       ...plan,
@@ -282,9 +347,28 @@ export class ValidationService {
 
     if (!plan) return undefined
 
+    // Only increment fixAttempt, keep results so failureSummary is preserved.
+    // Status stays 'failed' so the loop knows validation has not passed.
     const updated: ValidationPlan = {
       ...plan,
       fixAttempt: plan.fixAttempt + 1,
+      updatedAt: now(),
+    }
+
+    this.plans.set(taskId, updated)
+
+    return updated
+  }
+
+  resetForNextValidation(taskId: string): ValidationPlan | undefined {
+    const plan = this.plans.get(taskId)
+
+    if (!plan) return undefined
+
+    // Reset only after a new apply_patch is confirmed.
+    // Keep fixAttempt so we don't re-count attempts.
+    const updated: ValidationPlan = {
+      ...plan,
       status: 'pending',
       results: [],
       updatedAt: now(),
@@ -321,7 +405,7 @@ export class ValidationService {
   createFeedbackPrompt(plan: ValidationPlan): string {
     const summary = this.summarize(plan)
 
-    if (summary.status !== 'failed') {
+    if (summary.status !== 'failed' && summary.status !== 'rejected') {
       return ''
     }
 
@@ -343,8 +427,11 @@ export class ValidationService {
       throw new Error(`Validation plan not found: ${taskId}`)
     }
 
+    const hasRejected = plan.results.some(
+      result => result.status === 'rejected',
+    )
     const hasFailed = plan.results.some(result => result.status === 'failed')
-    const status = hasFailed ? 'failed' : 'passed'
+    const status = hasRejected ? 'rejected' : hasFailed ? 'failed' : 'passed'
 
     const updated: ValidationPlan = {
       ...plan,

@@ -60,13 +60,21 @@ export function registerTaskRoutes(
     Params: { id: string }
   }>('/api/tasks/:id/validation', async request => {
     const task = context.taskService.get(request.params.id)
-    const plan =
-      context.validationService.getPlan(task.id) ??
-      (await context.validationService.createPlan({ task }))
+    const plan = context.validationService.getPlan(task.id)
 
+    if (plan) {
+      return {
+        plan,
+        summary: context.validationService.summarize(plan),
+        persisted: true,
+      }
+    }
+
+    const preview = await context.validationService.previewPlan({ task })
     return {
-      plan,
-      summary: context.validationService.summarize(plan),
+      plan: preview,
+      summary: context.validationService.summarize(preview),
+      persisted: false,
     }
   })
 

@@ -1025,4 +1025,145 @@ describe('ForgeAgentLoop', () => {
 
     expect(plan?.results[0].status).toBe('passed')
   })
+
+  it('continues validation commands across runs after first command passed', async () => {
+    const { loop, taskService, runner } = createLoopFixture([
+      JSON.stringify({
+        message: 'final',
+        final: true,
+        summary: {
+          changes: ['x'],
+          tests: [],
+          risks: [],
+          nextSteps: [],
+        },
+      }),
+    ])
+
+    const task = await taskService.create({
+      workspaceId: 'ws_1',
+      prompt: 'x',
+      validation: {
+        commands: ['pnpm typecheck', 'pnpm test:run'],
+        maxFixAttempts: 2,
+      },
+    })
+
+    await mkdir(task.worktreePath, { recursive: true })
+
+    const plan = await runner.validationService.createPlan({
+      task,
+      taskValidation: task.validation,
+    })
+
+    const waiting = await runner.validationService.requestNextValidation({
+      task,
+      plan,
+    })
+
+    await runner.validationService.recordCommandResult({
+      taskId: task.id,
+      command: 'pnpm typecheck',
+      cwd: task.worktreePath,
+      ok: true,
+      approvalId: waiting.results[0].approvalId,
+      exitCode: 0,
+    })
+
+    const result = await loop.run(task.id)
+
+    expect(result.status).toBe('waiting_approval')
+    expect(runner.approvalService.list().at(-1)?.command).toBe('pnpm test:run')
+  })
+
+  it('does not request validation again after failure until a new patch is applied', async () => {
+    const { loop, taskService, runner } = createLoopFixture([
+      JSON.stringify({
+        message: '直接完成',
+        final: true,
+        summary: {
+          changes: [],
+          tests: [],
+          risks: [],
+          nextSteps: [],
+        },
+      }),
+      JSON.stringify({
+        message: '搜索失败',
+        action: {
+          name: 'search_text',
+          args: { query: 'Type error' },
+        },
+      }),
+    ])
+
+    const task = await taskService.create({
+      workspaceId: 'ws_1',
+      prompt: 'fix type error',
+      validation: {
+        commands: ['pnpm typecheck'],
+        maxFixAttempts: 2,
+      },
+    })
+
+    await mkdir(task.worktreePath, { recursive: true })
+
+    const plan = await runner.validationService.createPlan({
+      task,
+      taskValidation: task.validation,
+    })
+
+    const waiting = await runner.validationService.requestNextValidation({
+      task,
+      plan,
+    })
+
+    await runner.validationService.recordCommandResult({
+      taskId: task.id,
+      command: 'pnpm typecheck',
+      cwd: task.worktreePath,
+      ok: false,
+      approvalId: waiting.results[0].approvalId,
+      exitCode: 1,
+      stderr: 'Type error',
+    })
+
+    const approvalsBefore = runner.approvalService.list().length
+
+    await loop.run(task.id)
+
+    // No new approval should be created — validation failed and the model
+    // tried to finalize without fixing. The loop must inject feedback and
+    // continue, not request another validation.
+    expect(runner.approvalService.list()).toHaveLength(approvalsBefore)
+  })
+
+  it('marks validation as rejected when approval is rejected', async () => {
+    const { taskService, runner } = createLoopFixture([])
+
+    const task = await taskService.create({
+      workspaceId: 'ws_1',
+      prompt: 'x',
+      validation: {
+        commands: ['pnpm typecheck'],
+      },
+    })
+
+    const plan = await runner.validationService.createPlan({
+      task,
+      taskValidation: task.validation,
+    })
+
+    const waiting = await runner.validationService.requestNextValidation({
+      task,
+      plan,
+    })
+
+    await runner.approvalGate.reject(waiting.results[0].approvalId!, 'no')
+
+    const current = runner.validationService.getPlan(task.id)
+
+    expect(current?.status).toBe('rejected')
+    expect(current?.results[0].status).toBe('rejected')
+  })
 })
