@@ -776,4 +776,92 @@ describe('runner server', { timeout: 20000 }, () => {
       await app.close()
     }
   }, 20000)
+
+  it('self-heals memory for existing tasks when reading memory API', async () => {
+    const app = await createTestServer()
+    const fixture = await createGitFixture()
+
+    try {
+      const workspaceResponse = await app.inject({
+        method: 'POST',
+        url: '/api/workspaces',
+        payload: {
+          repoPath: fixture.repoPath,
+        },
+      })
+
+      const workspace = workspaceResponse.json() as { id: string }
+
+      const taskResponse = await app.inject({
+        method: 'POST',
+        url: '/api/tasks',
+        payload: {
+          workspaceId: workspace.id,
+          prompt: 'legacy memory',
+        },
+      })
+
+      const task = taskResponse.json() as { id: string }
+
+      await app.forgeagent.taskMemoryService.deleteTaskMemory(task.id)
+
+      const memoryResponse = await app.inject({
+        method: 'GET',
+        url: `/api/tasks/${task.id}/memory`,
+      })
+
+      expect(memoryResponse.statusCode).toBe(200)
+      expect(memoryResponse.json().files).toHaveLength(7)
+    } finally {
+      await fixture.cleanup()
+      await app.close()
+    }
+  }, 20000)
+
+  it('includes task memory directory in cleanup preview size', async () => {
+    const app = await createTestServer()
+    const fixture = await createGitFixture()
+
+    try {
+      const workspaceResponse = await app.inject({
+        method: 'POST',
+        url: '/api/workspaces',
+        payload: {
+          repoPath: fixture.repoPath,
+        },
+      })
+
+      const workspace = workspaceResponse.json() as { id: string }
+
+      const taskResponse = await app.inject({
+        method: 'POST',
+        url: '/api/tasks',
+        payload: {
+          workspaceId: workspace.id,
+          prompt: 'cleanup memory size',
+        },
+      })
+
+      const task = taskResponse.json() as { id: string }
+
+      await app.forgeagent.taskMemoryService.append({
+        taskId: task.id,
+        file: 'findings.md',
+        heading: 'Large finding',
+        content: 'x'.repeat(2048),
+        reason: 'test',
+      })
+
+      const previewResponse = await app.inject({
+        method: 'GET',
+        url: `/api/tasks/cleanup/preview?taskId=${task.id}`,
+      })
+
+      expect(previewResponse.statusCode).toBe(200)
+      expect(previewResponse.json().estimatedBytes).toBeGreaterThanOrEqual(2048)
+    } finally {
+      await fixture.cleanup()
+      await app.close()
+    }
+  }, 20000)
 })

@@ -79,6 +79,8 @@ export class ForgeAgentLoop {
 
     const runContext = createAgentRunContext(this.runner, taskId)
 
+    await this.runner.taskMemoryService?.ensureTaskMemory(runContext.task)
+
     await this.ensureRunning(runContext.task.id)
 
     const messages: ChatMessage[] = [

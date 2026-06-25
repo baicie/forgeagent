@@ -17,6 +17,15 @@ import { resolve } from 'node:path'
 import type { RunnerConfig } from '../config'
 import type { EventService } from './eventService'
 
+function isNotFoundError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as NodeJS.ErrnoException).code === 'ENOENT'
+  )
+}
+
 export interface AppendTaskMemoryInput {
   taskId: string
   file: TaskMemoryFileName
@@ -72,7 +81,8 @@ function safeJson(value: unknown, maxChars = 4000): string {
   let text: string
 
   try {
-    text = JSON.stringify(value, null, 2)
+    const json = JSON.stringify(value, null, 2)
+    text = json === undefined ? String(value) : json
   } catch {
     text = String(value)
   }
@@ -260,6 +270,25 @@ export class TaskMemoryService {
 
     await this.emitUpdated(task.id, 'task_plan.md', 'Task memory initialized')
     await this.emitUpdated(task.id, 'progress.md', 'Task memory initialized')
+  }
+
+  async ensureTaskMemory(task: Task): Promise<void> {
+    await mkdir(this.getRunDir(task.id), { recursive: true })
+
+    for (const file of TASK_MEMORY_FILES) {
+      const path = this.getMemoryFilePath(task.id, file)
+
+      try {
+        await stat(path)
+      } catch (error) {
+        if (!isNotFoundError(error)) {
+          throw error
+        }
+
+        await writeFile(path, createInitialContent(task, file), 'utf-8')
+        await this.emitUpdated(task.id, file, 'Task memory self-healed')
+      }
+    }
   }
 
   async readTaskMemory(taskId: string): Promise<TaskMemorySnapshot> {

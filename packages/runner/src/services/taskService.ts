@@ -332,6 +332,7 @@ export class TaskService {
       },
     })
 
+    await this.taskMemoryService?.ensureTaskMemory(task)
     await this.taskMemoryService?.recordStatusChange({
       task,
       previousStatus,
@@ -357,7 +358,7 @@ export class TaskService {
   }
 
   async getMemory(id: string) {
-    this.get(id)
+    const task = this.get(id)
 
     if (!this.taskMemoryService) {
       throw createForgeAgentError(
@@ -367,11 +368,13 @@ export class TaskService {
       )
     }
 
+    await this.taskMemoryService.ensureTaskMemory(task)
+
     return this.taskMemoryService.readTaskMemory(id)
   }
 
   async getMemoryFile(id: string, file: TaskMemoryFileName) {
-    this.get(id)
+    const task = this.get(id)
 
     if (!this.taskMemoryService) {
       throw createForgeAgentError(
@@ -380,6 +383,8 @@ export class TaskService {
         { taskId: id, file },
       )
     }
+
+    await this.taskMemoryService.ensureTaskMemory(task)
 
     return this.taskMemoryService.readTaskMemoryFile(id, file)
   }
@@ -595,11 +600,16 @@ export class TaskService {
     const items: CleanupTaskPreviewItem[] = []
 
     for (const task of tasks) {
+      const worktreeBytes = await estimatePathSize(task.worktreePath)
+      const memoryBytes = this.taskMemoryService
+        ? await estimatePathSize(this.taskMemoryService.getRunDir(task.id))
+        : 0
+
       items.push({
         id: task.id,
         status: task.status,
         worktreePath: task.worktreePath,
-        estimatedBytes: await estimatePathSize(task.worktreePath),
+        estimatedBytes: worktreeBytes + memoryBytes,
       })
     }
 

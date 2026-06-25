@@ -160,4 +160,36 @@ describe('taskMemoryService', () => {
 
     await expect(service.readTaskMemory(task.id)).rejects.toThrow()
   })
+
+  it('self-heals missing task memory files for legacy tasks', async () => {
+    const task = createTask()
+
+    await service.ensureTaskMemory(task)
+
+    const snapshot = await service.readTaskMemory(task.id)
+
+    expect(snapshot.files).toHaveLength(7)
+    expect(
+      snapshot.files.find(file => file.file === 'task_plan.md')?.content,
+    ).toContain('Fix the bug')
+  })
+
+  it('records undefined final summary without crashing', async () => {
+    const task = createTask()
+
+    await service.initializeTaskMemory(task)
+    await service.recordFinalSummary({
+      taskId: task.id,
+      message: 'done',
+      summary: undefined,
+    })
+
+    const finalSummary = await service.readTaskMemoryFile(
+      task.id,
+      'final_summary.md',
+    )
+
+    expect(finalSummary.content).toContain('done')
+    expect(finalSummary.content).toContain('{}')
+  })
 })
