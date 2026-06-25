@@ -47,7 +47,7 @@
     "pre-commit": "pnpm exec lint-staged"
   },
   "lint-staged": {
-    "*.{js,ts,mjs,cjs}": [
+    "*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}": [
       "prettier --write --cache --cache-location node_modules/.cache/.prettiercache",
       "eslint --cache --cache-location node_modules/.cache/.eslintcache"
     ],
