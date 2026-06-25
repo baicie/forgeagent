@@ -1,4 +1,5 @@
 import type { Workspace } from '@forgeagent/core'
+import { mkdir } from 'node:fs/promises'
 import type { RunnerToolContext } from './tools/types'
 import { ToolRegistry } from './tools/registry'
 import { loadRunnerConfig } from '../config'
@@ -472,6 +473,140 @@ describe('ForgeAgentLoop', () => {
 
     expect(result.status).toBe('waiting_approval')
     expect(taskService.get(task.id).status).toBe('waiting_approval')
+  })
+
+  it('keeps run_command toolCallId consistent between registry and approval', async () => {
+    let taskId = ''
+
+    const { loop, taskService, runner, toolRegistry } = createLoopFixture([
+      JSON.stringify({
+        message: '运行测试',
+        action: {
+          name: 'run_command',
+          args: {
+            command: 'echo ok',
+            cwd: '.',
+            reason: 'verify',
+          },
+        },
+      }),
+    ])
+
+    const task = await taskService.create({
+      workspaceId: 'ws_1',
+      prompt: 'run tests',
+    })
+
+    taskId = task.id
+
+    // Ensure the mocked worktree path exists so commandPolicy.resolveCwd
+    // does not throw WORKSPACE_NOT_FOUND.
+    await mkdir(task.worktreePath, { recursive: true })
+
+    registerMockTool(toolRegistry, 'run_command', async (_ctx, args) => {
+      const recordToolCallId = (args as { toolCallId?: string }).toolCallId
+      const created = await runner.approvalService.create({
+        taskId: taskService.get(taskId).id,
+        toolCallId: recordToolCallId ?? `tool_${Date.now().toString(36)}`,
+        command: 'echo ok',
+        cwd: '.',
+        reason: 'verify',
+        risk: 'low',
+      })
+      await taskService.waitForApproval(taskId, 'Command requires approval')
+      return {
+        approvalId: created.id,
+        status: 'waiting_approval',
+        risk: created.risk,
+        command: created.command,
+        cwd: created.cwd,
+      }
+    })
+
+    const result = await loop.run(task.id)
+
+    expect(result.status).toBe('waiting_approval')
+
+    const events = runner.eventService.listTaskEvents(task.id)
+    const started = events.find(event => event.type === 'tool.started')
+    const approval = runner.approvalService.list()[0]
+
+    expect(started?.payload).toMatchObject({
+      toolName: 'run_command',
+      source: 'core',
+      permission: 'requires_approval',
+      approvalStatus: 'pending',
+    })
+
+    expect((started?.payload as { toolCallId?: string }).toolCallId).toBe(
+      approval.toolCallId,
+    )
+  })
+
+  it('emits approved run_command events with the same toolCallId', async () => {
+    let taskId = ''
+
+    const { loop, taskService, runner, toolRegistry } = createLoopFixture([
+      JSON.stringify({
+        message: '运行测试',
+        action: {
+          name: 'run_command',
+          args: {
+            command: 'echo ok',
+            cwd: '.',
+            reason: 'verify',
+          },
+        },
+      }),
+    ])
+
+    const task = await taskService.create({
+      workspaceId: 'ws_1',
+      prompt: 'run tests',
+    })
+
+    taskId = task.id
+
+    // Ensure the mocked worktree path exists so commandPolicy.resolveCwd
+    // does not throw WORKSPACE_NOT_FOUND.
+    await mkdir(task.worktreePath, { recursive: true })
+
+    registerMockTool(toolRegistry, 'run_command', async (_ctx, args) => {
+      const recordToolCallId = (args as { toolCallId?: string }).toolCallId
+      const created = await runner.approvalService.create({
+        taskId: taskService.get(taskId).id,
+        toolCallId: recordToolCallId ?? `tool_${Date.now().toString(36)}`,
+        command: 'echo ok',
+        cwd: '.',
+        reason: 'verify',
+        risk: 'low',
+      })
+      await taskService.waitForApproval(taskId, 'Command requires approval')
+      return {
+        approvalId: created.id,
+        status: 'waiting_approval',
+        risk: created.risk,
+        command: created.command,
+        cwd: created.cwd,
+      }
+    })
+
+    await loop.run(task.id)
+
+    const approval = runner.approvalService.list()[0]
+    await runner.approvalGate.approve(approval.id)
+
+    const events = runner.eventService.listTaskEvents(task.id)
+    const runEvents = events.filter(event => {
+      const payload = event.payload as { toolName?: string }
+      return payload.toolName === 'run_command'
+    })
+
+    const toolCallIds = runEvents
+      .map(event => (event.payload as { toolCallId?: string }).toolCallId)
+      .filter(Boolean)
+
+    expect(new Set(toolCallIds).size).toBe(1)
   })
 
   it('marks task as failed when JSON parsing still fails after retries', async () => {

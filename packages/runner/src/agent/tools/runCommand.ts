@@ -1,6 +1,5 @@
 import type { CommandRiskLevel, TaskStatus } from '@forgeagent/core'
 import { classifyCommandRisk, createForgeAgentError } from '@forgeagent/core'
-import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { assertSafeReadablePath } from './common'
 import type { RunnerToolContext } from './types'
@@ -9,6 +8,7 @@ export const RunCommandArgsSchema = z.object({
   command: z.string().min(1),
   cwd: z.string().default('.'),
   reason: z.string().min(1).default('Agent requested command execution'),
+  toolCallId: z.string().min(1).optional(),
 })
 
 export type RunCommandArgs = z.infer<typeof RunCommandArgsSchema>
@@ -102,7 +102,7 @@ export async function runCommandTool(
 
   const cwd = assertSafeReadablePath(context, args.cwd)
   const risk = classifyCommandRisk(args.command)
-  const toolCallId = `tool_${randomUUID()}`
+  const toolCallId = args.toolCallId ?? `tool_${Date.now().toString(36)}`
 
   const approval = await context.approvalService.create({
     taskId: task.id,

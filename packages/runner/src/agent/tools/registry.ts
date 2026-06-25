@@ -12,14 +12,12 @@ import {
   createToolCallId,
 } from '@forgeagent/core'
 import type { AgentToolName } from '../json'
-import {
-  applyPatchTool,
-  getDiffTool,
-  listFilesTool,
-  readFileTool,
-  runCommandTool,
-  searchTextTool,
-} from './index'
+import { applyPatchTool } from './applyPatch'
+import { getDiffTool } from './getDiff'
+import { listFilesTool } from './listFiles'
+import { readFileTool } from './readFile'
+import { runCommandTool } from './runCommand'
+import { searchTextTool } from './searchText'
 import type { MCPToolProvider } from './mcpProvider'
 import { EmptyMCPToolProvider } from './mcpProvider'
 import type { PluginToolProvider } from './pluginProvider'
@@ -199,6 +197,8 @@ function defaultApprovalStatus(
 }
 
 export class ToolRegistry {
+  // In-process records are used to correlate a tool call while it is running.
+  // Persistent history is represented by task events emitted by AgentLoop / ApprovalGate.
   private readonly tools = new Map<string, RegisteredTool>()
   private readonly records = new Map<string, ToolCallRecord>()
   private readonly mcpProvider: MCPToolProvider

@@ -68,6 +68,18 @@ ToolRegistry 负责：
 4. 输出 tool.started/tool.finished 结构化事件。
 5. 为 Console 展示提供统一字段。
 
+### Record Persistence
+
+ToolRegistry keeps in-process `ToolCallRecord` objects during execution.
+
+Persistent history is stored through task events:
+
+- `tool.started`
+- `tool.output`
+- `tool.finished`
+
+Console reads task events, not the in-memory registry, so task history survives Runner restart.
+
 ## Boundary
 
 ```txt

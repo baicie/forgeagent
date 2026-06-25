@@ -119,4 +119,22 @@ describe('runCommandTool', () => {
       await fixture.cleanup()
     }
   }, 20000)
+
+  it('uses injected toolCallId when creating approval', async () => {
+    const fixture = await createToolTestFixture()
+
+    try {
+      const result = await runCommandTool(fixture.context, {
+        command: 'pnpm test',
+        reason: 'verify changes',
+        toolCallId: 'tool_registry_1',
+      })
+
+      const approval = fixture.approvalService.get(result.approvalId)
+
+      expect(approval.toolCallId).toBe('tool_registry_1')
+    } finally {
+      await fixture.cleanup()
+    }
+  }, 20000)
 })
