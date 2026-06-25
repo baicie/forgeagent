@@ -18,6 +18,7 @@ import { ShellExecutor } from './shell/shellExecutor'
 import { ApprovalService } from './services/approvalService'
 import { AuditService } from './services/auditService'
 import { EventService } from './services/eventService'
+import { TaskMemoryService } from './services/taskMemoryService'
 import { TaskService } from './services/taskService'
 import { WorkspaceService } from './services/workspaceService'
 import { DiskSpaceService } from './storage/disk'
@@ -43,6 +44,7 @@ export interface RunnerContext {
   eventService: EventService
   approvalService: ApprovalService
   auditService: AuditService
+  taskMemoryService: TaskMemoryService
 }
 
 export function createRunnerContext(
@@ -63,6 +65,7 @@ export function createRunnerContext(
 
   const eventService = new EventService(db)
   const auditService = new AuditService(db)
+  const taskMemoryService = new TaskMemoryService(config, eventService)
   const workspaceService = new WorkspaceService(db, gitRepositoryService)
   const taskService = new TaskService(
     db,
@@ -77,6 +80,7 @@ export function createRunnerContext(
     auditService,
     gitWorkspaceSnapshotService,
     diskSpaceService,
+    taskMemoryService,
   )
 
   const approvalService = new ApprovalService(db, eventService, auditService)
@@ -88,6 +92,7 @@ export function createRunnerContext(
     auditService,
     shellExecutor,
     commandPolicy,
+    taskMemoryService,
   })
 
   const modelGateway = new OpenAICompatibleModelGateway(
@@ -115,6 +120,7 @@ export function createRunnerContext(
     eventService,
     approvalService,
     auditService,
+    taskMemoryService,
   }
 
   context.agentLoop = new ForgeAgentLoop(context, modelGateway)

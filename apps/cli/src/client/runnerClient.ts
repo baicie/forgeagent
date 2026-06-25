@@ -1,4 +1,9 @@
 import type {
+  TaskMemoryFile,
+  TaskMemoryFileName,
+  TaskMemorySnapshot,
+} from '@forgeagent/core'
+import type {
   ApiErrorPayload,
   DiffResult,
   ListResponse,
@@ -224,6 +229,19 @@ export class RunnerApiClient {
     })
   }
 
+  async getTaskMemory(id: string): Promise<TaskMemorySnapshot> {
+    return this.request(`/api/tasks/${encodeURIComponent(id)}/memory`)
+  }
+
+  async getTaskMemoryFile(
+    id: string,
+    file: TaskMemoryFileName,
+  ): Promise<TaskMemoryFile> {
+    return this.request(
+      `/api/tasks/${encodeURIComponent(id)}/memory/${encodeURIComponent(file)}`,
+    )
+  }
+
   async deleteTask(id: string): Promise<void> {
     await this.request(`/api/tasks/${encodeURIComponent(id)}`, {
       method: 'DELETE',
@@ -250,17 +268,15 @@ export class RunnerApiClient {
   }
 
   async approveApproval(id: string): Promise<unknown> {
-    return this.request(
-      `/api/approvals/${encodeURIComponent(id)}/approve`,
-      { method: 'POST' },
-    )
+    return this.request(`/api/approvals/${encodeURIComponent(id)}/approve`, {
+      method: 'POST',
+    })
   }
 
   async rejectApproval(id: string): Promise<unknown> {
-    return this.request(
-      `/api/approvals/${encodeURIComponent(id)}/reject`,
-      { method: 'POST' },
-    )
+    return this.request(`/api/approvals/${encodeURIComponent(id)}/reject`, {
+      method: 'POST',
+    })
   }
 
   private async request<T>(

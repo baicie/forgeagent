@@ -5,9 +5,16 @@ import { mergeTaskEvents, subscribeTaskEvents } from '../api/events'
 import { ApprovalPanel } from '../components/ApprovalPanel'
 import { DiffViewer } from '../components/DiffViewer'
 import { ErrorBanner } from '../components/ErrorBanner'
+import { TaskMemoryPanel } from '../components/TaskMemoryPanel'
 import { TaskTimeline } from '../components/TaskTimeline'
 import { ToolCallView } from '../components/ToolCallView'
-import type { DiffResult, Task, TaskEvent, Workspace } from '../types'
+import type {
+  DiffResult,
+  Task,
+  TaskEvent,
+  TaskMemorySnapshot,
+  Workspace,
+} from '../types'
 
 export interface TaskPageProps {
   client: RunnerApiClient
@@ -20,6 +27,7 @@ export function TaskPage(props: TaskPageProps) {
   const [workspace, setWorkspace] = useState<Workspace | undefined>()
   const [events, setEvents] = useState<TaskEvent[]>([])
   const [diff, setDiff] = useState<DiffResult | undefined>()
+  const [memory, setMemory] = useState<TaskMemorySnapshot | undefined>()
   const [error, setError] = useState<unknown>()
   const [notice, setNotice] = useState<string | undefined>()
   const [busy, setBusy] = useState(false)
@@ -62,12 +70,24 @@ export function TaskPage(props: TaskPageProps) {
     }
   }
 
+  const loadMemory = async () => {
+    setError(undefined)
+
+    try {
+      setMemory(await props.client.getTaskMemory(props.taskId))
+    } catch (err) {
+      setError(err)
+    }
+  }
+
   useEffect(() => {
     setEvents([])
     setDiff(undefined)
+    setMemory(undefined)
     setNotice(undefined)
     void loadTask()
     void loadDiff()
+    void loadMemory()
 
     const unsubscribe = subscribeTaskEvents({
       baseUrl: props.client.baseUrl,
@@ -81,6 +101,10 @@ export function TaskPage(props: TaskPageProps) {
 
         if (event.type === 'diff.updated') {
           void loadDiff()
+        }
+
+        if (event.type === 'memory.updated') {
+          void loadMemory()
         }
 
         if (event.type === 'task.completed') {
@@ -164,6 +188,7 @@ export function TaskPage(props: TaskPageProps) {
       })
 
       if (
+        // eslint-disable-next-line no-alert
         !window.confirm(
           `确定要彻底删除这个任务吗？\n\n预计释放空间：${formatBytes(
             preview.estimatedBytes,
@@ -280,6 +305,11 @@ export function TaskPage(props: TaskPageProps) {
         <section className="panel">
           <h3>工具调用</h3>
           <ToolCallView events={events} />
+        </section>
+
+        <section className="panel wide">
+          <h3>外部任务记忆</h3>
+          <TaskMemoryPanel memory={memory} onRefresh={loadMemory} />
         </section>
 
         <section className="panel wide">

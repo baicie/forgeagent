@@ -207,4 +207,62 @@ describe('runner api client', () => {
       }),
     )
   })
+
+  it('gets task memory snapshot', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          taskId: 'task_1',
+          runDir: '/tmp/runs/task_1',
+          files: [
+            {
+              file: 'task_plan.md',
+              content: '# Task Plan',
+              bytes: 11,
+            },
+          ],
+        }),
+      })),
+    )
+
+    const client = new RunnerApiClient()
+    const result = await client.getTaskMemory('task_1')
+
+    expect(result.taskId).toBe('task_1')
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/tasks/task_1/memory',
+      expect.objectContaining({
+        method: 'GET',
+      }),
+    )
+  })
+
+  it('gets one task memory file', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          file: 'findings.md',
+          content: '# Findings',
+          bytes: 10,
+        }),
+      })),
+    )
+
+    const client = new RunnerApiClient()
+    const result = await client.getTaskMemoryFile('task_1', 'findings.md')
+
+    expect(result.file).toBe('findings.md')
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/tasks/task_1/memory/findings.md',
+      expect.objectContaining({
+        method: 'GET',
+      }),
+    )
+  })
 })

@@ -134,6 +134,14 @@ export class ForgeAgentLoop {
         },
       })
 
+      await this.runner.taskMemoryService?.recordAgentStep({
+        taskId,
+        step,
+        maxSteps,
+        message: response.message,
+        actionName: response.action?.name,
+      })
+
       messages.push({
         role: 'assistant',
         content: JSON.stringify(response),
@@ -324,6 +332,13 @@ export class ForgeAgentLoop {
           toolName,
           result,
         },
+      })
+
+      await this.runner.taskMemoryService?.recordToolResult({
+        taskId: context.task.id,
+        toolName,
+        args,
+        result,
       })
 
       return result

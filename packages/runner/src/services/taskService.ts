@@ -1,4 +1,4 @@
-import type { Task, TaskStatus } from '@forgeagent/core'
+import type { Task, TaskMemoryFileName, TaskStatus } from '@forgeagent/core'
 import {
   canTransitionTaskStatus,
   createForgeAgentError,
@@ -20,6 +20,7 @@ import { estimatePathSize } from '../storage/size'
 import type { DiskSpaceService } from '../storage/disk'
 import type { AuditService } from './auditService'
 import type { EventService } from './eventService'
+import type { TaskMemoryService } from './taskMemoryService'
 import type { WorkspaceService } from './workspaceService'
 
 export interface CreateTaskInput {
@@ -102,6 +103,7 @@ export class TaskService {
     private readonly auditService: AuditService,
     private readonly gitWorkspaceSnapshotService?: GitWorkspaceSnapshotService,
     private readonly diskSpaceService?: DiskSpaceService,
+    private readonly taskMemoryService?: TaskMemoryService,
   ) {}
 
   list(): Task[] {
@@ -172,6 +174,8 @@ export class TaskService {
       this.db.state.tasks.push(task)
       await this.db.save()
 
+      await this.taskMemoryService?.initializeTaskMemory(task)
+
       await this.eventService.append({
         taskId: task.id,
         type: 'task.status',
@@ -229,6 +233,20 @@ export class TaskService {
   async complete(id: string, output?: unknown): Promise<Task> {
     const task = await this.transition(id, 'completed', 'Task completed')
 
+    const completedMessage =
+      typeof output === 'object' &&
+      output !== null &&
+      'message' in output &&
+      typeof (output as { message?: unknown }).message === 'string'
+        ? (output as { message: string }).message
+        : 'Task completed'
+
+    await this.taskMemoryService?.recordFinalSummary({
+      taskId: task.id,
+      message: completedMessage,
+      summary: output,
+    })
+
     await this.eventService.append({
       taskId: task.id,
       type: 'agent.message',
@@ -251,6 +269,11 @@ export class TaskService {
 
   async fail(id: string, error: unknown): Promise<Task> {
     const task = await this.transition(id, 'failed', 'Task failed')
+
+    await this.taskMemoryService?.recordFailure({
+      taskId: task.id,
+      error,
+    })
 
     await this.eventService.append({
       taskId: task.id,
@@ -309,6 +332,13 @@ export class TaskService {
       },
     })
 
+    await this.taskMemoryService?.recordStatusChange({
+      task,
+      previousStatus,
+      status,
+      reason,
+    })
+
     return task
   }
 
@@ -324,6 +354,34 @@ export class TaskService {
         bytes: Buffer.byteLength(diff, 'utf-8'),
       },
     })
+  }
+
+  async getMemory(id: string) {
+    this.get(id)
+
+    if (!this.taskMemoryService) {
+      throw createForgeAgentError(
+        'TOOL_EXECUTION_FAILED',
+        'Task memory service is not available',
+        { taskId: id },
+      )
+    }
+
+    return this.taskMemoryService.readTaskMemory(id)
+  }
+
+  async getMemoryFile(id: string, file: TaskMemoryFileName) {
+    this.get(id)
+
+    if (!this.taskMemoryService) {
+      throw createForgeAgentError(
+        'TOOL_EXECUTION_FAILED',
+        'Task memory service is not available',
+        { taskId: id, file },
+      )
+    }
+
+    return this.taskMemoryService.readTaskMemoryFile(id, file)
   }
 
   async getDiff(id: string): Promise<{ taskId: string; diff: string }> {
@@ -481,10 +539,14 @@ export class TaskService {
       // Best-effort: worktree may not exist
     }
 
+    await this.taskMemoryService?.deleteTaskMemory(id).catch(() => {})
+
     this.db.state.tasks = this.db.state.tasks.filter(t => t.id !== id)
     this.db.state.events = this.db.state.events.filter(e => e.taskId !== id)
     this.db.state.audits = this.db.state.audits.filter(a => a.taskId !== id)
-    this.db.state.approvals = this.db.state.approvals.filter(a => a.taskId !== id)
+    this.db.state.approvals = this.db.state.approvals.filter(
+      a => a.taskId !== id,
+    )
 
     await this.db.save()
 
@@ -578,6 +640,8 @@ export class TaskService {
         // Best-effort cleanup. Keep the original create() error.
       }
     }
+
+    await this.taskMemoryService?.deleteTaskMemory(input.taskId).catch(() => {})
 
     this.db.state.tasks = this.db.state.tasks.filter(
       task => task.id !== input.taskId,

@@ -1,4 +1,7 @@
-import { CreateTaskInputSchema } from '@forgeagent/core'
+import {
+  CreateTaskInputSchema,
+  TaskMemoryFileNameSchema,
+} from '@forgeagent/core'
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import type { RunnerContext } from '../context'
@@ -31,6 +34,21 @@ export function registerTaskRoutes(
       taskId: query.taskId,
     })
   })
+
+  app.get<{
+    Params: { id: string }
+  }>('/api/tasks/:id/memory', async request =>
+    context.taskService.getMemory(request.params.id),
+  )
+
+  app.get<{
+    Params: { id: string; file: string }
+  }>('/api/tasks/:id/memory/:file', async request =>
+    context.taskService.getMemoryFile(
+      request.params.id,
+      TaskMemoryFileNameSchema.parse(request.params.file),
+    ),
+  )
 
   app.get<{
     Params: { id: string }

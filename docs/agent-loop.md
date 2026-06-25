@@ -92,3 +92,32 @@ run_command 必须审批
 Phase 0 只完成 ForgeAgent 命名、包名、文档和测试收敛。
 
 Agent Loop 的实现从 Phase 7 开始。
+
+## External Working Memory
+
+Phase 13 起，每个 task 都会维护外部任务记忆：
+
+```txt
+~/.forgeagent/runs/<taskId>/
+  task_plan.md
+  progress.md
+  findings.md
+  decisions.md
+  changed_files.md
+  test_results.md
+  final_summary.md
+```
+
+这些文件不是给人看的"装饰文档"，而是 Agent Harness 的外部工作记忆。
+
+规则：
+
+1. 创建 task 后自动生成 task_plan.md。
+2. 每次状态变化更新 progress.md。
+3. 每轮 Agent step 更新 progress.md。
+4. search_text/read_file 结果写入 findings.md。
+5. apply_patch 结果写入 changed_files.md 和 decisions.md。
+6. run_command 执行结果写入 test_results.md。
+7. final 输出写入 final_summary.md。
+
+每次更新会发出 `memory.updated` 事件，Console 和 CLI 可以被动刷新。

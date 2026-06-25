@@ -15,6 +15,7 @@ import { ShellExecutor } from '../shell/shellExecutor'
 import { ApprovalService } from '../services/approvalService'
 import { AuditService } from '../services/auditService'
 import { EventService } from '../services/eventService'
+import { TaskMemoryService } from '../services/taskMemoryService'
 import { TaskService } from '../services/taskService'
 import type { WorkspaceService } from '../services/workspaceService'
 import type { ModelGenerateInput } from './model'
@@ -149,6 +150,8 @@ function createLoopFixture(
     dataDir: '/tmp/forgeagent-loop-test',
   })
 
+  const taskMemoryService = new TaskMemoryService(config, eventService)
+
   const taskService = new TaskService(
     db,
     config,
@@ -160,6 +163,9 @@ function createLoopFixture(
     gitCommitService,
     eventService,
     auditService,
+    undefined,
+    undefined,
+    taskMemoryService,
   )
 
   const approvalService = new ApprovalService(db, eventService, auditService)
@@ -185,6 +191,7 @@ function createLoopFixture(
     eventService,
     approvalService,
     auditService,
+    taskMemoryService,
   } as unknown as RunnerContext
 
   runner.approvalGate = new ApprovalGate({
@@ -194,6 +201,7 @@ function createLoopFixture(
     auditService,
     shellExecutor,
     commandPolicy,
+    taskMemoryService,
   })
 
   async function defaultTool(
@@ -230,6 +238,7 @@ function createLoopFixture(
     db,
     loop,
     taskService,
+    runner,
   }
 }
 
@@ -519,5 +528,76 @@ describe('ForgeAgentLoop', () => {
 
     expect(result.status).toBe('completed')
     expect(result.finalMessage).toContain('看到历史中的测试输出')
+  })
+
+  it('records agent steps, findings and final summary into task memory', async () => {
+    const { loop, taskService, runner } = createLoopFixture(
+      [
+        JSON.stringify({
+          message: '先搜索错误',
+          action: {
+            name: 'search_text',
+            args: {
+              query: 'Git command failed',
+            },
+          },
+        }),
+        JSON.stringify({
+          message: '完成',
+          final: true,
+          summary: {
+            changes: ['记录了搜索发现'],
+            tests: ['未执行测试'],
+            risks: ['无'],
+            nextSteps: ['查看 memory'],
+          },
+        }),
+      ],
+      {},
+      async (_ctx, toolName) => {
+        if (toolName === 'search_text') {
+          return {
+            matches: [
+              {
+                path: 'packages/runner/src/git/diff.ts',
+                line: 10,
+                text: 'Git command failed',
+              },
+            ],
+            truncated: false,
+          }
+        }
+
+        throw new Error(`Unexpected tool: ${toolName}`)
+      },
+    )
+
+    const task = await taskService.create({
+      workspaceId: 'ws_1',
+      prompt: 'find git error',
+    })
+
+    await runner.taskMemoryService.deleteTaskMemory(task.id).catch(() => {})
+
+    const result = await loop.run(task.id)
+
+    expect(result.status).toBe('completed')
+
+    const progress = await runner.taskMemoryService.readTaskMemoryFile(
+      task.id,
+      'progress.md',
+    )
+    const findings = await runner.taskMemoryService.readTaskMemoryFile(
+      task.id,
+      'findings.md',
+    )
+    const finalSummary = await runner.taskMemoryService.readTaskMemoryFile(
+      task.id,
+      'final_summary.md',
+    )
+
+    expect(progress.content).toContain('Agent step 1')
+    expect(findings.content).toContain('Search: Git command failed')
+    expect(finalSummary.content).toContain('记录了搜索发现')
   })
 })

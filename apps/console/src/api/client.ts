@@ -3,6 +3,9 @@ import type {
   DiffResult,
   ListResponse,
   Task,
+  TaskMemoryFile,
+  TaskMemoryFileName,
+  TaskMemorySnapshot,
   Workspace,
 } from '../types'
 
@@ -180,6 +183,19 @@ export class RunnerApiClient {
       method: 'POST',
       body: input,
     })
+  }
+
+  async getTaskMemory(id: string): Promise<TaskMemorySnapshot> {
+    return this.request(`/api/tasks/${encodeURIComponent(id)}/memory`)
+  }
+
+  async getTaskMemoryFile(
+    id: string,
+    file: TaskMemoryFileName,
+  ): Promise<TaskMemoryFile> {
+    return this.request(
+      `/api/tasks/${encodeURIComponent(id)}/memory/${encodeURIComponent(file)}`,
+    )
   }
 
   async getTaskCleanupPreview(

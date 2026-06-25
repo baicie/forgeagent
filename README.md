@@ -163,7 +163,22 @@ forgeagent task diff <taskId>
 
 注意：Agent 的修改只会写入隔离 worktree，原仓库不会立即变化。
 
-### 7. 交付任务
+### 7. 查看任务外部记忆
+
+```bash
+forgeagent task memory <taskId>
+forgeagent task memory <taskId> --file findings.md
+```
+
+任务记忆位于：
+
+```txt
+~/.forgeagent/runs/<taskId>/
+```
+
+包含 task_plan、progress、findings、decisions、changed_files、test_results 和 final_summary。
+
+### 8. 交付任务
 
 把修改应用到原仓库：
 
@@ -183,7 +198,7 @@ forgeagent task commit <taskId> --message "feat: update readme"
 forgeagent task discard <taskId>
 ```
 
-### 8. 清理所有任务
+### 9. 清理所有任务
 
 长期使用后可以一键清理所有 task worktree 和记录：
 
@@ -267,6 +282,8 @@ forgeagent task create --workspace <id> --prompt "..."
 forgeagent task run <taskId>
 forgeagent task watch <taskId>
 forgeagent task diff <taskId>
+forgeagent task memory <taskId>
+forgeagent task memory <taskId> --file <file>
 forgeagent task apply <taskId>
 forgeagent task commit <taskId> --message "..."
 forgeagent task discard <taskId>

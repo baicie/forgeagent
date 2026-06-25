@@ -53,6 +53,28 @@ function createClient() {
       ...createTask(),
       status: 'cancelled',
     })),
+    getTaskMemory: vi.fn(async () => ({
+      taskId: 'task_1',
+      runDir: '/tmp/runs/task_1',
+      files: [
+        {
+          file: 'task_plan.md',
+          content: '# Task Plan\n\nFix bug\n',
+          bytes: 21,
+          updatedAt: '2026-06-25T00:00:00.000Z',
+        },
+        {
+          file: 'progress.md',
+          content: '# Progress\n',
+          bytes: 11,
+        },
+      ],
+    })),
+    getTaskMemoryFile: vi.fn(async () => ({
+      file: 'findings.md',
+      content: '# Findings\n\n- Found bug\n',
+      bytes: 23,
+    })),
   } as unknown as RunnerApiClient
 }
 
@@ -177,6 +199,43 @@ describe('task command', () => {
         baseUrl: 'http://127.0.0.1:17890',
         taskId: 'task_1',
       }),
+    )
+  })
+
+  it('prints all task memory files', async () => {
+    const client = createClient()
+    const command = createTaskCommand(() => client)
+
+    await command.parseAsync(['node', 'test', 'memory', 'task_1'])
+
+    expect(client.getTaskMemory).toHaveBeenCalledWith('task_1')
+    const calls = (console.log as ReturnType<typeof vi.fn>).mock.calls
+    const flatCalls = calls.flat()
+    const logOutput = flatCalls.join('\n')
+
+    expect(logOutput).toContain('task_plan.md')
+    expect(logOutput).toContain('progress.md')
+  })
+
+  it('prints one task memory file', async () => {
+    const client = createClient()
+    const command = createTaskCommand(() => client)
+
+    await command.parseAsync([
+      'node',
+      'test',
+      'memory',
+      'task_1',
+      '--file',
+      'findings.md',
+    ])
+
+    expect(client.getTaskMemoryFile).toHaveBeenCalledWith(
+      'task_1',
+      'findings.md',
+    )
+    expect(process.stdout.write).toHaveBeenCalledWith(
+      expect.stringContaining('Found bug'),
     )
   })
 })

@@ -2,6 +2,7 @@ import type { Approval } from '@forgeagent/core'
 import type { ApprovalService } from '../services/approvalService'
 import type { AuditService } from '../services/auditService'
 import type { EventService } from '../services/eventService'
+import type { TaskMemoryService } from '../services/taskMemoryService'
 import type { TaskService } from '../services/taskService'
 import type { CommandPolicy, CommandPolicyEvaluation } from './commandPolicy'
 import type { ShellExecutor, ShellExecutionResult } from './shellExecutor'
@@ -13,6 +14,7 @@ export interface ApprovalGateOptions {
   auditService: AuditService
   shellExecutor: ShellExecutor
   commandPolicy: CommandPolicy
+  taskMemoryService?: TaskMemoryService
 }
 
 export interface RejectedCommandResult {
@@ -158,6 +160,18 @@ export class ApprovalGate {
       },
     })
 
+    await this.options.taskMemoryService?.recordCommandResult({
+      taskId: approval.taskId,
+      command: approval.command,
+      cwd,
+      ok: result.ok,
+      exitCode: result.exitCode,
+      timedOut: result.timedOut,
+      stdout: result.stdout,
+      stderr: result.stderr,
+      error: result.error,
+    })
+
     return {
       approval: approved,
       policy,
@@ -206,6 +220,15 @@ export class ApprovalGate {
         rejected: true,
         reason,
       },
+    })
+
+    await this.options.taskMemoryService?.recordCommandResult({
+      taskId: approval.taskId,
+      command: approval.command,
+      cwd: approval.cwd,
+      ok: false,
+      rejected: true,
+      reason,
     })
 
     return {

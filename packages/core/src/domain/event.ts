@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { TaskStatusSchema } from './task'
+import { MemoryUpdatedEventPayloadSchema } from './taskMemory'
 
 export const TaskEventTypeSchema = z.enum([
   'task.status',
@@ -10,6 +11,7 @@ export const TaskEventTypeSchema = z.enum([
   'approval.required',
   'approval.resolved',
   'diff.updated',
+  'memory.updated',
   'task.completed',
   'task.failed',
 ])
@@ -139,6 +141,9 @@ export function parseTaskEventPayload(
 
     case 'diff.updated':
       return DiffUpdatedEventPayloadSchema.parse(payload)
+
+    case 'memory.updated':
+      return MemoryUpdatedEventPayloadSchema.parse(payload)
 
     case 'task.completed':
       return TaskCompletedEventPayloadSchema.parse(payload)

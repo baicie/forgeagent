@@ -667,4 +667,113 @@ describe('runner server', { timeout: 20000 }, () => {
       await app.close()
     }
   })
+
+  it('creates task memory files and exposes them through API', async () => {
+    const app = await createTestServer()
+    const fixture = await createGitFixture()
+
+    try {
+      const workspaceResponse = await app.inject({
+        method: 'POST',
+        url: '/api/workspaces',
+        payload: {
+          repoPath: fixture.repoPath,
+        },
+      })
+
+      const workspace = workspaceResponse.json() as { id: string }
+
+      const taskResponse = await app.inject({
+        method: 'POST',
+        url: '/api/tasks',
+        payload: {
+          workspaceId: workspace.id,
+          prompt: 'fix memory test',
+        },
+      })
+
+      expect(taskResponse.statusCode).toBe(201)
+
+      const task = taskResponse.json() as { id: string }
+
+      const memoryResponse = await app.inject({
+        method: 'GET',
+        url: `/api/tasks/${task.id}/memory`,
+      })
+
+      expect(memoryResponse.statusCode).toBe(200)
+
+      const memory = memoryResponse.json() as {
+        taskId: string
+        files: Array<{ file: string; content: string }>
+      }
+
+      expect(memory.taskId).toBe(task.id)
+      expect(memory.files.map(file => file.file)).toContain('task_plan.md')
+      expect(
+        memory.files.find(file => file.file === 'task_plan.md')?.content,
+      ).toContain('fix memory test')
+
+      const progressResponse = await app.inject({
+        method: 'GET',
+        url: `/api/tasks/${task.id}/memory/progress.md`,
+      })
+
+      expect(progressResponse.statusCode).toBe(200)
+      expect(progressResponse.json().content).toContain('Task created')
+    } finally {
+      await fixture.cleanup()
+      await app.close()
+    }
+  }, 20000)
+
+  it('updates progress memory on task status changes', async () => {
+    const app = await createTestServer()
+    const fixture = await createGitFixture()
+
+    try {
+      const workspaceResponse = await app.inject({
+        method: 'POST',
+        url: '/api/workspaces',
+        payload: {
+          repoPath: fixture.repoPath,
+        },
+      })
+
+      const workspace = workspaceResponse.json() as { id: string }
+
+      const taskResponse = await app.inject({
+        method: 'POST',
+        url: '/api/tasks',
+        payload: {
+          workspaceId: workspace.id,
+          prompt: 'status memory',
+        },
+      })
+
+      const task = taskResponse.json() as { id: string }
+
+      await app.inject({
+        method: 'POST',
+        url: `/api/tasks/${task.id}/prepare`,
+      })
+
+      await app.inject({
+        method: 'POST',
+        url: `/api/tasks/${task.id}/start`,
+      })
+
+      const progressResponse = await app.inject({
+        method: 'GET',
+        url: `/api/tasks/${task.id}/memory/progress.md`,
+      })
+
+      expect(progressResponse.statusCode).toBe(200)
+      expect(progressResponse.json().content).toContain('Status: preparing')
+      expect(progressResponse.json().content).toContain('Status: running')
+    } finally {
+      await fixture.cleanup()
+      await app.close()
+    }
+  }, 20000)
 })

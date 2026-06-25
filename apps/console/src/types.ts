@@ -43,6 +43,7 @@ export type TaskEventType =
   | 'approval.required'
   | 'approval.resolved'
   | 'diff.updated'
+  | 'memory.updated'
   | 'task.completed'
   | 'task.failed'
 
@@ -52,6 +53,28 @@ export interface TaskEvent {
   type: TaskEventType
   payload: unknown
   createdAt: string
+}
+
+export type TaskMemoryFileName =
+  | 'task_plan.md'
+  | 'progress.md'
+  | 'findings.md'
+  | 'decisions.md'
+  | 'changed_files.md'
+  | 'test_results.md'
+  | 'final_summary.md'
+
+export interface TaskMemoryFile {
+  file: TaskMemoryFileName
+  content: string
+  bytes: number
+  updatedAt?: string
+}
+
+export interface TaskMemorySnapshot {
+  taskId: string
+  runDir: string
+  files: TaskMemoryFile[]
 }
 
 export interface ApprovalPayload {
