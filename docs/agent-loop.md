@@ -161,3 +161,17 @@ Context Pack 约束：
 7. final 输出写入 final_summary.md。
 
 每次更新会发出 `memory.updated` 事件，Console 和 CLI 可以被动刷新。
+
+## Tool Layer Boundary
+
+Agent Loop 不直接 switch 调用工具函数，而是通过 ToolRegistry 调用。
+
+ToolRegistry 负责：
+
+1. 查找工具描述。
+2. 判断 source/type/permission。
+3. 创建 ToolCallRecord。
+4. 输出 tool.started/tool.finished 结构化事件。
+5. 为 Console 展示提供统一字段。
+
+Phase 14.5 暂不接真实 MCP Server。

@@ -282,6 +282,36 @@ pre {
   gap: 8px;
   color: #555;
   font-size: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.tool-source {
+  font-weight: 700;
+}
+
+.tool-permission,
+.tool-approval {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.permission-requires_approval,
+.approval-pending {
+  color: #b7791f;
+}
+
+.permission-denied,
+.approval-denied {
+  color: #c53030;
+}
+
+.tool-source-mcp {
+  border-color: #805ad5;
+}
+
+.tool-source-plugin {
+  border-color: #3182ce;
 }
 
 .approval-card.risk-dangerous {

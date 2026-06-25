@@ -26,6 +26,7 @@ export function createAgentRunContext(
       worktreePath: task.worktreePath,
       taskService: runner.taskService,
       approvalService: runner.approvalService,
+      toolRegistry: runner.toolRegistry,
     },
   }
 }

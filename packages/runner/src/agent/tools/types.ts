@@ -4,6 +4,7 @@ import type {
   Task,
   Workspace,
 } from '@forgeagent/core'
+import type { ToolRegistry } from './registry'
 
 export interface ToolTaskService {
   get: (id: string) => Task
@@ -31,6 +32,7 @@ export interface RunnerToolContext {
   worktreePath: string
   taskService: ToolTaskService
   approvalService: ToolApprovalService
+  toolRegistry?: ToolRegistry
 }
 
 export interface RunnerToolResult<T = unknown> {

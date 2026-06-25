@@ -4,15 +4,8 @@ import {
   createForgeAgentError,
 } from '@forgeagent/core'
 import type { RunnerContext } from '../context'
-import {
-  applyPatchTool,
-  getDiffTool,
-  listFilesTool,
-  readFileTool,
-  runCommandTool,
-  searchTextTool,
-} from './tools'
 import type { RunnerToolContext } from './tools'
+import { serializeToolRecordForEvent } from './tools/registry'
 import type {
   ChatMessage,
   ModelGenerateInput,
@@ -330,28 +323,45 @@ export class ForgeAgentLoop {
     throw lastError
   }
 
+  /**
+   * Execute a tool action via ToolRegistry.
+   * All tools go through the registry so the loop emits structured
+   * tool.started/tool.finished events with consistent metadata.
+   */
   private async executeAction(
     context: RunnerToolContext,
     toolName: AgentToolName,
     args: unknown,
   ): Promise<unknown> {
+    const descriptor = this.runner.toolRegistry.getDescriptor(toolName)
+    const startedRecord = this.runner.toolRegistry.createStartedRecord({
+      taskId: context.task.id,
+      descriptor,
+      args,
+    })
+
     await this.runner.eventService.append({
       taskId: context.task.id,
       type: 'tool.started',
-      payload: {
-        toolName,
-        args,
-      },
+      payload: serializeToolRecordForEvent(startedRecord),
     })
 
     try {
-      const result = await this.dispatchTool(context, toolName, args)
+      const result = await this.runner.toolRegistry.invokeExistingRecord({
+        recordId: startedRecord.id,
+        context,
+        toolName,
+        args,
+      })
+
+      const finishedRecord =
+        this.runner.toolRegistry.getRecord(startedRecord.id) ?? startedRecord
 
       await this.runner.eventService.append({
         taskId: context.task.id,
         type: 'tool.finished',
         payload: {
-          toolName,
+          ...serializeToolRecordForEvent(finishedRecord),
           result,
         },
       })
@@ -365,50 +375,19 @@ export class ForgeAgentLoop {
 
       return result
     } catch (error) {
+      const finishedRecord =
+        this.runner.toolRegistry.getRecord(startedRecord.id) ?? startedRecord
+
       await this.runner.eventService.append({
         taskId: context.task.id,
         type: 'tool.finished',
         payload: {
-          toolName,
+          ...serializeToolRecordForEvent(finishedRecord),
           error: error instanceof Error ? error.message : String(error),
         },
       })
 
       throw error
-    }
-  }
-
-  private async dispatchTool(
-    context: RunnerToolContext,
-    toolName: AgentToolName,
-    args: unknown,
-  ): Promise<unknown> {
-    return this._dispatchTool(context, toolName, args)
-  }
-
-  protected async _dispatchTool(
-    context: RunnerToolContext,
-    toolName: AgentToolName,
-    args: unknown,
-  ): Promise<unknown> {
-    switch (toolName) {
-      case 'list_files':
-        return listFilesTool(context, args)
-
-      case 'read_file':
-        return readFileTool(context, args)
-
-      case 'search_text':
-        return searchTextTool(context, args)
-
-      case 'apply_patch':
-        return applyPatchTool(context, args)
-
-      case 'run_command':
-        return runCommandTool(context, args)
-
-      case 'get_diff':
-        return getDiffTool(context, args)
     }
   }
 

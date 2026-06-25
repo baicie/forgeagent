@@ -1,6 +1,6 @@
 import type { Workspace } from '@forgeagent/core'
-import type { AgentToolName } from './json'
 import type { RunnerToolContext } from './tools/types'
+import { ToolRegistry } from './tools/registry'
 import { loadRunnerConfig } from '../config'
 import type { RunnerContext } from '../context'
 import { createInMemoryRunnerDb } from '../db'
@@ -23,36 +23,6 @@ import { OpenAICompatibleModelGateway } from './model'
 import { ContextPackBuilder } from '../context/contextPackBuilder'
 
 const { ForgeAgentLoop } = await import('./loop')
-
-class TestableForgeAgentLoop extends ForgeAgentLoop {
-  private mockTool: (
-    ctx: RunnerToolContext,
-    name: AgentToolName,
-    args: unknown,
-  ) => Promise<unknown>
-
-  constructor(
-    runner: RunnerContext,
-    model: unknown,
-    options: Record<string, unknown>,
-    mockTool: (
-      ctx: RunnerToolContext,
-      name: AgentToolName,
-      args: unknown,
-    ) => Promise<unknown>,
-  ) {
-    super(runner, model as any, options as any)
-    this.mockTool = mockTool
-  }
-
-  protected override async _dispatchTool(
-    context: RunnerToolContext,
-    toolName: AgentToolName,
-    args: unknown,
-  ): Promise<unknown> {
-    return this.mockTool(context, toolName, args)
-  }
-}
 
 class FakeModelGateway extends OpenAICompatibleModelGateway {
   private index = 0
@@ -77,16 +47,9 @@ class FakeModelGateway extends OpenAICompatibleModelGateway {
   }
 }
 
-type ToolMock = (
-  ctx: RunnerToolContext,
-  name: AgentToolName,
-  args: unknown,
-) => Promise<unknown>
-
 function createLoopFixture(
   outputs: string[],
   options: Record<string, unknown> = {},
-  toolMock?: ToolMock,
 ) {
   const workspace: Workspace = {
     id: 'ws_1',
@@ -182,10 +145,12 @@ function createLoopFixture(
   const commandPolicy = new CommandPolicy()
   const shellExecutor = new ShellExecutor()
 
+  const toolRegistry = new ToolRegistry()
+
   const runner = {
     config,
     db,
-    modelGateway: new FakeModelGateway(outputs),
+    modelGateway: undefined,
     agentLoop: undefined,
     gitClient: undefined,
     gitRepositoryService,
@@ -202,6 +167,7 @@ function createLoopFixture(
     auditService,
     taskMemoryService,
     contextPackBuilder,
+    toolRegistry,
   } as unknown as RunnerContext
 
   runner.approvalGate = new ApprovalGate({
@@ -214,43 +180,59 @@ function createLoopFixture(
     taskMemoryService,
   })
 
-  async function defaultTool(
-    ctx: RunnerToolContext,
-    toolName: AgentToolName,
-    args: unknown,
-  ) {
-    const {
-      listFilesTool,
-      readFileTool,
-      searchTextTool,
-      applyPatchTool,
-      getDiffTool,
-      runCommandTool,
-    } = await import('./tools')
+  const fakeModelGateway = new FakeModelGateway(outputs)
 
-    if (toolName === 'list_files') return listFilesTool(ctx, args)
-    if (toolName === 'read_file') return readFileTool(ctx, args)
-    if (toolName === 'search_text') return searchTextTool(ctx, args)
-    if (toolName === 'apply_patch') return applyPatchTool(ctx, args)
-    if (toolName === 'get_diff') return getDiffTool(ctx, args)
-    if (toolName === 'run_command') return runCommandTool(ctx, args)
-    throw new Error(`Unknown tool: ${String(toolName)}`)
-  }
-
-  const loop = new TestableForgeAgentLoop(
-    runner,
-    runner.modelGateway,
-    options,
-    toolMock ?? defaultTool,
-  )
+  const loop = new ForgeAgentLoop(runner, fakeModelGateway, options as any)
 
   return {
     db,
     loop,
     taskService,
     runner,
-    modelGateway: runner.modelGateway as FakeModelGateway,
+    modelGateway: fakeModelGateway,
     contextPackBuilder,
+    toolRegistry,
+  }
+}
+
+function registerMockTool(
+  registry: ToolRegistry,
+  toolName: string,
+  handler: (ctx: RunnerToolContext, args: unknown) => Promise<unknown>,
+) {
+  // Patch the handler directly on the already-registered tool entry.
+  // This avoids "already registered" errors while keeping the descriptor intact.
+  const tools = registry as unknown as {
+    tools: Map<
+      string,
+      {
+        handler?: (ctx: RunnerToolContext, args: unknown) => Promise<unknown>
+      }
+    >
+  }
+  const tool = tools.tools.get(toolName)
+  if (tool) {
+    tool.handler = handler
+  } else {
+    registry.register({
+      descriptor: {
+        name: toolName,
+        source: 'core',
+        type:
+          toolName === 'run_command'
+            ? 'execute'
+            : toolName === 'apply_patch'
+              ? 'write'
+              : 'read',
+        permission:
+          toolName === 'run_command' ? 'requires_approval' : 'allowed',
+        requiresApproval: toolName === 'run_command',
+        modelCallable: true,
+      },
+      handler: handler as unknown as Parameters<
+        typeof ToolRegistry.prototype.register
+      >[0]['handler'],
+    })
   }
 }
 
@@ -322,7 +304,7 @@ describe('ForgeAgentLoop', () => {
   })
 
   it('fails when exceeding maxSteps', async () => {
-    const { loop, taskService } = createLoopFixture(
+    const { loop, taskService, toolRegistry } = createLoopFixture(
       [
         JSON.stringify({
           message: '继续看 diff',
@@ -335,6 +317,12 @@ describe('ForgeAgentLoop', () => {
       {
         maxSteps: 2,
       },
+    )
+
+    registerMockTool(
+      toolRegistry,
+      'get_diff',
+      async () => 'diff --git a/README.md\n',
     )
 
     const task = await taskService.create({
@@ -350,7 +338,7 @@ describe('ForgeAgentLoop', () => {
   })
 
   it('executes tool action and continues to final', async () => {
-    const { db, loop, taskService } = createLoopFixture([
+    const { db, loop, taskService, toolRegistry } = createLoopFixture([
       JSON.stringify({
         message: '先看 diff',
         action: {
@@ -369,6 +357,12 @@ describe('ForgeAgentLoop', () => {
         },
       }),
     ])
+
+    registerMockTool(
+      toolRegistry,
+      'get_diff',
+      async () => 'diff --git a/README.md\n',
+    )
 
     const task = await taskService.create({
       workspaceId: 'ws_1',
@@ -396,38 +390,76 @@ describe('ForgeAgentLoop', () => {
     )
   })
 
+  it('emits structured tool metadata through ToolRegistry', async () => {
+    const { loop, taskService, toolRegistry, runner } = createLoopFixture([
+      JSON.stringify({
+        message: '先看 diff',
+        action: {
+          name: 'get_diff',
+          args: {},
+        },
+      }),
+      JSON.stringify({
+        message: '完成',
+        final: true,
+        summary: {
+          changes: ['读取了 diff'],
+          tests: [],
+          risks: [],
+          nextSteps: [],
+        },
+      }),
+    ])
+
+    registerMockTool(
+      toolRegistry,
+      'get_diff',
+      async () => 'diff --git a/README.md\n',
+    )
+
+    const task = await taskService.create({
+      workspaceId: 'ws_1',
+      prompt: 'check diff',
+    })
+
+    await loop.run(task.id)
+
+    const events = runner.eventService.listTaskEvents(task.id)
+    const started = events.find(event => event.type === 'tool.started')
+    const payload = started?.payload as Record<string, unknown>
+
+    expect(payload.source).toBe('core')
+    expect(payload.permission).toBe('allowed')
+    expect(payload.requiresApproval).toBe(false)
+    expect(payload.type).toBe('read')
+  })
+
   it('pauses when run_command requests approval', async () => {
     let taskId = ''
 
-    const { loop, taskService } = createLoopFixture(
-      [
-        JSON.stringify({
-          message: '需要执行测试',
-          action: {
-            name: 'run_command',
-            args: {
-              command: 'pnpm test',
-              reason: '验证修改',
-            },
-          },
-        }),
-      ],
-      {},
-      async (_ctx, toolName) => {
-        if (toolName === 'run_command') {
-          await taskService.waitForApproval(taskId, 'Command requires approval')
-          return {
-            approvalId: 'approval_mock',
-            status: 'waiting_approval',
-            risk: 'low',
+    const { loop, taskService, toolRegistry } = createLoopFixture([
+      JSON.stringify({
+        message: '需要执行测试',
+        action: {
+          name: 'run_command',
+          args: {
             command: 'pnpm test',
-            cwd: '/tmp/worktree',
-          }
-        }
+            reason: '验证修改',
+          },
+        },
+      }),
+    ])
 
-        throw new Error(`Unexpected tool: ${String(toolName)}`)
-      },
-    )
+    registerMockTool(toolRegistry, 'run_command', async (_ctx, _args) => {
+      await taskService.waitForApproval(taskId, 'Command requires approval')
+      return {
+        approvalId: 'approval_mock',
+        status: 'waiting_approval',
+        risk: 'low',
+        command: 'pnpm test',
+        cwd: '/tmp/worktree',
+      }
+    })
 
     const task = await taskService.create({
       workspaceId: 'ws_1',
@@ -460,23 +492,21 @@ describe('ForgeAgentLoop', () => {
   })
 
   it('marks task as failed when tool execution throws', async () => {
-    const { db, loop, taskService } = createLoopFixture(
-      [
-        JSON.stringify({
-          message: '读一个不存在文件',
-          action: {
-            name: 'read_file',
-            args: {
-              path: 'missing.ts',
-            },
+    const { db, loop, taskService, toolRegistry } = createLoopFixture([
+      JSON.stringify({
+        message: '读一个不存在文件',
+        action: {
+          name: 'read_file',
+          args: {
+            path: 'missing.ts',
           },
-        }),
-      ],
-      {},
-      async () => {
-        throw new Error('tool failed')
-      },
-    )
+        },
+      }),
+    ])
+
+    registerMockTool(toolRegistry, 'read_file', async () => {
+      throw new Error('tool failed')
+    })
 
     const task = await taskService.create({
       workspaceId: 'ws_1',
@@ -543,7 +573,7 @@ describe('ForgeAgentLoop', () => {
   })
 
   it('records agent steps, findings and final summary into task memory', async () => {
-    const { loop, taskService, runner } = createLoopFixture(
+    const { loop, taskService, runner, toolRegistry } = createLoopFixture(
       [
         JSON.stringify({
           message: '先搜索错误',
@@ -566,23 +596,18 @@ describe('ForgeAgentLoop', () => {
         }),
       ],
       {},
-      async (_ctx, toolName) => {
-        if (toolName === 'search_text') {
-          return {
-            matches: [
-              {
-                path: 'packages/runner/src/git/diff.ts',
-                line: 10,
-                text: 'Git command failed',
-              },
-            ],
-            truncated: false,
-          }
-        }
-
-        throw new Error(`Unexpected tool: ${toolName}`)
-      },
     )
+
+    registerMockTool(toolRegistry, 'search_text', async () => ({
+      matches: [
+        {
+          path: 'packages/runner/src/git/diff.ts',
+          line: 10,
+          text: 'Git command failed',
+        },
+      ],
+      truncated: false,
+    }))
 
     const task = await taskService.create({
       workspaceId: 'ws_1',

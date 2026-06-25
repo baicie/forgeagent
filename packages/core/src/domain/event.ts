@@ -1,6 +1,10 @@
 import { z } from 'zod'
 import { TaskStatusSchema } from './task'
 import { MemoryUpdatedEventPayloadSchema } from './taskMemory'
+import {
+  ToolFinishedEventPayloadSchema,
+  ToolStartedEventPayloadSchema,
+} from './tool'
 
 export const TaskEventTypeSchema = z.enum([
   'task.status',
@@ -37,26 +41,11 @@ export type AgentMessageEventPayload = z.infer<
   typeof AgentMessageEventPayloadSchema
 >
 
-export const ToolStartedEventPayloadSchema = z
-  .object({
-    toolName: z.string().min(1),
-    args: z.unknown().optional(),
-  })
-  .passthrough()
-
 export const ToolOutputEventPayloadSchema = z
   .object({
     toolName: z.string().min(1).optional(),
     output: z.unknown().optional(),
     chunk: z.string().optional(),
-  })
-  .passthrough()
-
-export const ToolFinishedEventPayloadSchema = z
-  .object({
-    toolName: z.string().min(1),
-    result: z.unknown().optional(),
-    error: z.unknown().optional(),
   })
   .passthrough()
 

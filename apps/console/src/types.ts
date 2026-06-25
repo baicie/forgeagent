@@ -77,6 +77,36 @@ export interface TaskMemorySnapshot {
   files: TaskMemoryFile[]
 }
 
+export type ToolSource = 'core' | 'mcp' | 'plugin'
+export type ToolType = 'read' | 'write' | 'execute'
+export type ToolPermission = 'allowed' | 'requires_approval' | 'denied'
+export type ToolApprovalStatus =
+  | 'not_required'
+  | 'pending'
+  | 'approved'
+  | 'denied'
+
+export interface ToolEventPayload {
+  toolCallId?: string
+  toolName?: string
+  displayName?: string
+  source?: ToolSource
+  type?: ToolType
+  permission?: ToolPermission
+  requiresApproval?: boolean
+  approvalStatus?: ToolApprovalStatus
+  args?: unknown
+  result?: unknown
+  error?: string
+  command?: string
+  cwd?: string
+  approvalId?: string
+  risk?: string
+  riskColor?: string
+  ok?: boolean
+  rejected?: boolean
+}
+
 export interface ApprovalPayload {
   approvalId?: string
   toolCallId?: string

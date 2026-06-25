@@ -56,6 +56,7 @@ Local Runner + Web Console Lite + CLI
 - [docs/security.md](./docs/security.md)
 - [docs/runner.md](./docs/runner.md)
 - [docs/agent-loop.md](./docs/agent-loop.md)
+- [docs/tools.md](./docs/tools.md)
 
 ## 核心原则
 
@@ -340,7 +341,37 @@ docs/mvp.md
 docs/security.md
 docs/runner.md
 docs/agent-loop.md
+docs/tools.md
 ```
+
+## Core Harness Tools
+
+ForgeAgent 的内置工具称为 Core Harness Tools：
+
+```txt
+list_files
+read_file
+search_text
+apply_patch
+run_command
+get_diff
+```
+
+这些工具由 Runner 直接实现，并受 worktree、approval、audit、memory 和 context_pack 约束。
+
+MCP Tools 是未来外部系统扩展入口，不替代 Core Harness Tools。
+
+### 交付动作（用户触发）
+
+```txt
+apply_task
+commit_task
+discard_task
+```
+
+这些交付动作不开放给模型直接调用。用户通过 Console/CLI 触发。
+
+详细文档见 [docs/tools.md](./docs/tools.md)。
 
 ## License
 

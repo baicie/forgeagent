@@ -71,4 +71,70 @@ describe('tool call view', () => {
       'tool_1:tool.finished:evt_3:2',
     ])
   })
+
+  it('renders structured core tool metadata', () => {
+    render(
+      <ToolCallView
+        events={[
+          {
+            id: 'evt_1',
+            taskId: 'task_1',
+            type: 'tool.started',
+            payload: {
+              toolCallId: 'tool_1',
+              toolName: 'read_file',
+              displayName: 'read',
+              source: 'core',
+              type: 'read',
+              permission: 'allowed',
+              requiresApproval: false,
+              approvalStatus: 'not_required',
+              args: {
+                path: 'foo.ts',
+              },
+            },
+            createdAt: '2026-06-25T00:00:00.000Z',
+          },
+        ]}
+      />,
+    )
+
+    expect(screen.getByText('[core]')).toBeInTheDocument()
+    expect(screen.getByText('read')).toBeInTheDocument()
+    expect(screen.getByText('allowed')).toBeInTheDocument()
+    expect(screen.getByText('not_required')).toBeInTheDocument()
+    expect(screen.getByText('foo.ts')).toBeInTheDocument()
+  })
+
+  it('renders pending approval for run command', () => {
+    render(
+      <ToolCallView
+        events={[
+          {
+            id: 'evt_1',
+            taskId: 'task_1',
+            type: 'tool.started',
+            payload: {
+              toolCallId: 'tool_1',
+              toolName: 'run_command',
+              displayName: 'run',
+              source: 'core',
+              type: 'execute',
+              permission: 'requires_approval',
+              requiresApproval: true,
+              approvalStatus: 'pending',
+              command: 'pnpm test',
+            },
+            createdAt: '2026-06-25T00:00:00.000Z',
+          },
+        ]}
+      />,
+    )
+
+    expect(screen.getByText('[core]')).toBeInTheDocument()
+    expect(screen.getByText('run')).toBeInTheDocument()
+    expect(screen.getByText('requires approval')).toBeInTheDocument()
+    expect(screen.getByText('pending')).toBeInTheDocument()
+    expect(screen.getByText('pnpm test')).toBeInTheDocument()
+  })
 })
