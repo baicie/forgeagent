@@ -21,6 +21,10 @@ export interface CreateWorkspaceInput {
 export interface CreateTaskInput {
   workspaceId: string
   prompt: string
+  validation?: {
+    commands?: string[]
+    maxFixAttempts?: number
+  }
 }
 
 export interface CommitTaskInput {
@@ -185,6 +189,12 @@ export class RunnerApiClient {
 
   async getTask(id: string): Promise<Task> {
     return this.request(`/api/tasks/${encodeURIComponent(id)}`)
+  }
+
+  async getTaskValidation(
+    id: string,
+  ): Promise<{ plan: unknown; summary: unknown }> {
+    return this.request(`/api/tasks/${encodeURIComponent(id)}/validation`)
   }
 
   async createTask(input: CreateTaskInput): Promise<Task> {

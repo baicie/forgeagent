@@ -196,7 +196,31 @@ AGENTS.md
 .agents/skills/*
 ```
 
-### 8. 交付任务
+### 8. 自动验证反馈
+
+在项目根目录添加 `.agents/validation.yaml`：
+
+```yaml
+validation:
+  commands:
+    - pnpm typecheck
+    - pnpm test:run
+  maxFixAttempts: 3
+```
+
+也可以通过 CLI 指定：
+
+```bash
+forgeagent task create \
+  --workspace <id> \
+  --prompt "fix bug" \
+  --validate "pnpm typecheck" "pnpm test:run" \
+  --max-fix-attempts 3
+```
+
+Agent 修改文件并尝试 final 时，如果存在验证命令，Runner 会自动请求审批执行验证命令。验证失败后，Agent 会收到失败摘要并继续修复，最多尝试 `maxFixAttempts` 次。
+
+### 9. 交付任务
 
 把修改应用到原仓库：
 
@@ -216,7 +240,7 @@ forgeagent task commit <taskId> --message "feat: update readme"
 forgeagent task discard <taskId>
 ```
 
-### 9. 清理所有任务
+### 10. 清理所有任务
 
 长期使用后可以一键清理所有 task worktree 和记录：
 
@@ -296,7 +320,7 @@ forgeagent runner start
 forgeagent workspace add /path/to/repo
 forgeagent workspace list
 
-forgeagent task create --workspace <id> --prompt "..."
+forgeagent task create --workspace <id> --prompt "..." --validate "pnpm typecheck" --max-fix-attempts 3
 forgeagent task run <taskId>
 forgeagent task watch <taskId>
 forgeagent task diff <taskId>
@@ -342,6 +366,7 @@ docs/security.md
 docs/runner.md
 docs/agent-loop.md
 docs/tools.md
+docs/validation.md
 ```
 
 ## Core Harness Tools

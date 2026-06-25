@@ -19,6 +19,7 @@ import { EventService } from '../services/eventService'
 import { TaskMemoryService } from '../services/taskMemoryService'
 import { TaskService } from '../services/taskService'
 import type { WorkspaceService } from '../services/workspaceService'
+import { ValidationService } from '../validation/validationService'
 import type { ModelGenerateInput } from './model'
 import { OpenAICompatibleModelGateway } from './model'
 import { ContextPackBuilder } from '../context/contextPackBuilder'
@@ -148,6 +149,12 @@ function createLoopFixture(
 
   const toolRegistry = new ToolRegistry()
 
+  const validationService = new ValidationService(
+    approvalService,
+    eventService,
+    taskMemoryService,
+  )
+
   const runner = {
     config,
     db,
@@ -169,6 +176,7 @@ function createLoopFixture(
     taskMemoryService,
     contextPackBuilder,
     toolRegistry,
+    validationService,
   } as unknown as RunnerContext
 
   runner.approvalGate = new ApprovalGate({
@@ -179,6 +187,7 @@ function createLoopFixture(
     shellExecutor,
     commandPolicy,
     taskMemoryService,
+    validationService,
   })
 
   const fakeModelGateway = new FakeModelGateway(outputs)
@@ -193,6 +202,7 @@ function createLoopFixture(
     modelGateway: fakeModelGateway,
     contextPackBuilder,
     toolRegistry,
+    validationService,
   }
 }
 
@@ -809,5 +819,210 @@ describe('ForgeAgentLoop', () => {
 
     expect(serializedMessages).toContain('Context Pack')
     expect(serializedMessages).toContain('Project Rules')
+  })
+
+  // Phase 15: Validation Feedback Loop tests
+
+  it('requires get_diff before final after apply_patch', async () => {
+    const { loop, taskService } = createLoopFixture([
+      JSON.stringify({
+        message: '修改文件',
+        action: {
+          name: 'apply_patch',
+          args: {
+            changes: [
+              {
+                type: 'write_file',
+                path: 'README.md',
+                content: 'hello',
+              },
+            ],
+          },
+        },
+      }),
+      JSON.stringify({
+        message: '完成',
+        final: true,
+        summary: {
+          changes: ['updated readme'],
+          tests: [],
+          risks: [],
+          nextSteps: [],
+        },
+      }),
+      JSON.stringify({
+        message: '查看 diff',
+        action: {
+          name: 'get_diff',
+          args: {},
+        },
+      }),
+    ])
+
+    const task = await taskService.create({
+      workspaceId: 'ws_1',
+      prompt: 'update readme',
+    })
+
+    await loop.run(task.id)
+
+    // The loop should intercept final and ask for get_diff, then continue
+    const finalStatus = taskService.get(task.id).status
+    expect(finalStatus).not.toBe('completed')
+  })
+
+  it('requests validation approval before final when has validation commands', async () => {
+    const { loop, taskService, runner } = createLoopFixture([
+      JSON.stringify({
+        message: '修改文件',
+        action: {
+          name: 'apply_patch',
+          args: {
+            changes: [
+              {
+                type: 'write_file',
+                path: 'README.md',
+                content: 'hello',
+              },
+            ],
+          },
+        },
+      }),
+      JSON.stringify({
+        message: '查看 diff',
+        action: {
+          name: 'get_diff',
+          args: {},
+        },
+      }),
+      JSON.stringify({
+        message: '完成',
+        final: true,
+        summary: {
+          changes: ['updated readme'],
+          tests: [],
+          risks: [],
+          nextSteps: [],
+        },
+      }),
+    ])
+
+    const task = await taskService.create({
+      workspaceId: 'ws_1',
+      prompt: 'update readme',
+      validation: {
+        commands: ['pnpm typecheck'],
+        maxFixAttempts: 2,
+      },
+    })
+
+    await mkdir(task.worktreePath, { recursive: true })
+
+    const result = await loop.run(task.id)
+
+    expect(result.status).toBe('waiting_approval')
+    expect(runner.approvalService.list()[0].command).toBe('pnpm typecheck')
+
+    const validation = runner.validationService.getPlan(task.id)
+    expect(validation?.status).toBe('waiting_approval')
+  })
+
+  it('feeds validation failure back to model', async () => {
+    const { loop, taskService, runner, modelGateway } = createLoopFixture([
+      JSON.stringify({
+        message: '继续修复',
+        action: {
+          name: 'search_text',
+          args: {
+            query: 'Type error',
+          },
+        },
+      }),
+    ])
+
+    const task = await taskService.create({
+      workspaceId: 'ws_1',
+      prompt: 'fix type error',
+      validation: {
+        commands: ['pnpm typecheck'],
+        maxFixAttempts: 2,
+      },
+    })
+
+    await mkdir(task.worktreePath, { recursive: true })
+
+    const plan = await runner.validationService.createPlan({
+      task,
+      taskValidation: {
+        commands: ['pnpm typecheck'],
+        maxFixAttempts: 2,
+      },
+    })
+
+    const waiting = await runner.validationService.requestNextValidation({
+      task,
+      plan,
+    })
+
+    await runner.validationService.recordCommandResult({
+      taskId: task.id,
+      command: 'pnpm typecheck',
+      cwd: task.worktreePath,
+      ok: false,
+      approvalId: waiting.results[0].approvalId,
+      exitCode: 1,
+      stderr: 'Type error: missing property',
+    })
+
+    await loop.run(task.id)
+
+    const messages = JSON.stringify(modelGateway.inputs[0].messages)
+    expect(messages).toContain('验证失败')
+    expect(messages).toContain('Type error')
+  })
+
+  it('records approved validation command result into validation plan', async () => {
+    const { loop, taskService, runner } = createLoopFixture([
+      JSON.stringify({
+        message: '修改',
+        action: {
+          name: 'apply_patch',
+          args: {
+            changes: [
+              { type: 'write_file', path: 'README.md', content: 'hello' },
+            ],
+          },
+        },
+      }),
+      JSON.stringify({
+        message: 'diff',
+        action: { name: 'get_diff', args: {} },
+      }),
+      JSON.stringify({
+        message: 'done',
+        final: true,
+        summary: { changes: ['x'], tests: [], risks: [], nextSteps: [] },
+      }),
+    ])
+
+    const task = await taskService.create({
+      workspaceId: 'ws_1',
+      prompt: 'x',
+      validation: {
+        commands: ['echo ok'],
+      },
+    })
+
+    await mkdir(task.worktreePath, { recursive: true })
+
+    await loop.run(task.id)
+
+    const approval = runner.approvalService.list()[0]
+
+    await runner.approvalGate.approve(approval.id)
+
+    const plan = runner.validationService.getPlan(task.id)
+
+    expect(plan?.results[0].status).toBe('passed')
   })
 })

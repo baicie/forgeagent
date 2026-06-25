@@ -18,6 +18,8 @@ import {
   createSystemPrompt,
   createTaskEventHistoryPrompt,
   createTaskPrompt,
+  createValidationFeedbackPrompt,
+  createValidationFinalRiskPrompt,
 } from './prompts'
 import { normalizeFinalSummary, parseAgentStepResponse } from './json'
 import type { AgentStepResponse, AgentToolName } from './json'
@@ -72,6 +74,13 @@ export class ForgeAgentLoop {
       this.options.jsonRetryLimit ?? DEFAULT_JSON_RETRY_LIMIT
     const maxEventHistoryChars =
       this.options.maxEventHistoryChars ?? DEFAULT_MAX_EVENT_HISTORY_CHARS
+    const compactChars =
+      this.options.compactToolResultChars ??
+      this.runner.config.compactToolResultMaxChars ??
+      DEFAULT_COMPACT_TOOL_RESULT_CHARS
+
+    let hasAppliedPatch = false
+    let hasCheckedDiffAfterChange = false
 
     const runContext = createAgentRunContext(this.runner, taskId)
 
@@ -85,11 +94,6 @@ export class ForgeAgentLoop {
       task: latestTask,
       workspace: runContext.workspace,
     })
-
-    const compactChars =
-      this.options.compactToolResultChars ??
-      this.runner.config.compactToolResultMaxChars ??
-      DEFAULT_COMPACT_TOOL_RESULT_CHARS
 
     const messages: ChatMessage[] = [
       {
@@ -110,6 +114,55 @@ export class ForgeAgentLoop {
         content: createContextPackPrompt(contextPack.content),
       },
     ]
+
+    // Attempt to load or create validation plan; best-effort so tests
+    // with unmocked filesystems continue to work.
+    let validationPlan = this.runner.validationService.getPlan(taskId)
+
+    if (!validationPlan) {
+      try {
+        validationPlan = await this.runner.validationService.createPlan({
+          task: latestTask,
+          taskValidation: latestTask.validation,
+        })
+      } catch {
+        // Best-effort: continue without validation plan.
+      }
+    }
+
+    if (validationPlan) {
+      const currentSummary =
+        this.runner.validationService.summarize(validationPlan)
+
+      if (
+        currentSummary?.status === 'failed' &&
+        currentSummary.fixAttempt < currentSummary.maxFixAttempts
+      ) {
+        this.runner.validationService.markFixAttempt(taskId)
+        messages.push({
+          role: 'user',
+          content: createValidationFeedbackPrompt({
+            failureSummary:
+              currentSummary.failureSummary ?? 'Validation failed.',
+            fixAttempt: currentSummary.fixAttempt + 1,
+            maxFixAttempts: currentSummary.maxFixAttempts,
+          }),
+        })
+      } else if (
+        currentSummary?.status === 'failed' &&
+        currentSummary.fixAttempt >= currentSummary.maxFixAttempts
+      ) {
+        messages.push({
+          role: 'user',
+          content: createValidationFinalRiskPrompt({
+            failureSummary:
+              currentSummary.failureSummary ?? 'Validation failed.',
+            fixAttempt: currentSummary.fixAttempt,
+            maxFixAttempts: currentSummary.maxFixAttempts,
+          }),
+        })
+      }
+    }
 
     const historyEvents = this.runner.eventService.listTaskEvents(taskId)
 
@@ -162,15 +215,63 @@ export class ForgeAgentLoop {
       })
 
       if (response.final) {
+        const latestPlan =
+          this.runner.validationService.getPlan(taskId) ?? validationPlan
+
+        if (hasAppliedPatch && !hasCheckedDiffAfterChange) {
+          messages.push({
+            role: 'user',
+            content:
+              '你已经修改了文件，但还没有 get_diff。完成前必须先调用 get_diff 查看当前 diff。',
+          })
+          continue
+        }
+
+        if (
+          latestPlan &&
+          hasAppliedPatch &&
+          this.runner.validationService.hasCommands(latestPlan) &&
+          !this.runner.validationService.hasPassed(latestPlan)
+        ) {
+          const pendingPlan =
+            await this.runner.validationService.requestNextValidation({
+              task: this.runner.taskService.get(taskId),
+              plan: latestPlan,
+            })
+
+          await this.runner.taskService.waitForApproval(
+            taskId,
+            'Validation command requires approval',
+          )
+
+          return {
+            task: this.runner.taskService.get(taskId),
+            status: 'waiting_approval',
+            finalMessage: `Validation approval requested: ${
+              this.runner.validationService.nextPendingCommand(pendingPlan)
+                ?.command ?? ''
+            }`,
+          }
+        }
+
         const summary = normalizeFinalSummary(
           response.message,
           response.summary,
         )
 
+        const latestValidationPlan =
+          this.runner.validationService.getPlan(taskId)
+        const validationSummary = latestValidationPlan
+          ? this.runner.validationService.summarize(latestValidationPlan)
+          : undefined
+
         const finalMessage = JSON.stringify(
           {
             message: response.message,
-            summary,
+            summary: {
+              ...summary,
+              validation: validationSummary,
+            },
           },
           null,
           2,
@@ -178,7 +279,10 @@ export class ForgeAgentLoop {
 
         await this.runner.taskService.complete(taskId, {
           message: response.message,
-          summary,
+          summary: {
+            ...summary,
+            validation: validationSummary,
+          },
         })
 
         return {
@@ -198,6 +302,15 @@ export class ForgeAgentLoop {
             response,
           },
         )
+      }
+
+      if (action.name === 'apply_patch') {
+        hasAppliedPatch = true
+        hasCheckedDiffAfterChange = false
+      }
+
+      if (action.name === 'get_diff') {
+        hasCheckedDiffAfterChange = true
       }
 
       const toolResult = await this.executeAction(

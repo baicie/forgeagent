@@ -8,11 +8,14 @@ import { ErrorBanner } from '../components/ErrorBanner'
 import { TaskMemoryPanel } from '../components/TaskMemoryPanel'
 import { TaskTimeline } from '../components/TaskTimeline'
 import { ToolCallView } from '../components/ToolCallView'
+import { ValidationPanel } from '../components/ValidationPanel'
 import type {
   DiffResult,
   Task,
   TaskEvent,
   TaskMemorySnapshot,
+  ValidationPlan,
+  ValidationSummary,
   Workspace,
 } from '../types'
 
@@ -28,6 +31,9 @@ export function TaskPage(props: TaskPageProps) {
   const [events, setEvents] = useState<TaskEvent[]>([])
   const [diff, setDiff] = useState<DiffResult | undefined>()
   const [memory, setMemory] = useState<TaskMemorySnapshot | undefined>()
+  const [validation, setValidation] = useState<
+    { plan: ValidationPlan; summary: ValidationSummary } | undefined
+  >()
   const [error, setError] = useState<unknown>()
   const [notice, setNotice] = useState<string | undefined>()
   const [busy, setBusy] = useState(false)
@@ -80,14 +86,26 @@ export function TaskPage(props: TaskPageProps) {
     }
   }
 
+  const loadValidation = async () => {
+    setError(undefined)
+
+    try {
+      setValidation(await props.client.getTaskValidation(props.taskId))
+    } catch {
+      // validation is optional
+    }
+  }
+
   useEffect(() => {
     setEvents([])
     setDiff(undefined)
     setMemory(undefined)
+    setValidation(undefined)
     setNotice(undefined)
     void loadTask()
     void loadDiff()
     void loadMemory()
+    void loadValidation()
 
     const unsubscribe = subscribeTaskEvents({
       baseUrl: props.client.baseUrl,
@@ -105,6 +123,14 @@ export function TaskPage(props: TaskPageProps) {
 
         if (event.type === 'memory.updated') {
           void loadMemory()
+        }
+
+        if (
+          event.type === 'validation.planned' ||
+          event.type === 'validation.started' ||
+          event.type === 'validation.finished'
+        ) {
+          void loadValidation()
         }
 
         if (event.type === 'task.completed') {
@@ -133,6 +159,7 @@ export function TaskPage(props: TaskPageProps) {
       await props.client.approveApproval(approvalId)
       await loadTask()
       await loadDiff()
+      await loadValidation()
     })
   }
 
@@ -140,6 +167,7 @@ export function TaskPage(props: TaskPageProps) {
     await runAction(async () => {
       await props.client.rejectApproval(approvalId, { reason })
       await loadTask()
+      await loadValidation()
     })
   }
 
@@ -307,9 +335,18 @@ export function TaskPage(props: TaskPageProps) {
           <ToolCallView events={events} />
         </section>
 
-        <section className="panel wide">
+        <section className="panel">
           <h3>外部任务记忆</h3>
           <TaskMemoryPanel memory={memory} onRefresh={loadMemory} />
+        </section>
+
+        <section className="panel wide">
+          <h3>自动验证反馈</h3>
+          <ValidationPanel
+            plan={validation?.plan}
+            summary={validation?.summary}
+            onRefresh={loadValidation}
+          />
         </section>
 
         <section className="panel wide">

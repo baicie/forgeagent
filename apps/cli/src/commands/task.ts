@@ -29,16 +29,29 @@ export function createTaskCommand(
     .requiredOption('--workspace <id>', 'Workspace id')
     .requiredOption('--prompt <prompt>', 'Task prompt')
     .option('--run', 'Run agent immediately after task creation')
+    .option('--validate <commands...>', 'Validation command(s)')
+    .option('--max-fix-attempts <n>', 'Max validation fix attempts', value =>
+      Number.parseInt(value, 10),
+    )
     .action(
       async (actionOptions: {
         workspace: string
         prompt: string
         run?: boolean
+        validate?: string[]
+        maxFixAttempts?: number
       }) => {
         const client = clientFactory()
         const task = await client.createTask({
           workspaceId: actionOptions.workspace,
           prompt: actionOptions.prompt,
+          validation:
+            actionOptions.validate || actionOptions.maxFixAttempts !== undefined
+              ? {
+                  commands: actionOptions.validate,
+                  maxFixAttempts: actionOptions.maxFixAttempts,
+                }
+              : undefined,
         })
 
         console.log(pc.green('Task created'))

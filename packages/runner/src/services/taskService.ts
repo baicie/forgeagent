@@ -26,6 +26,12 @@ import type { WorkspaceService } from './workspaceService'
 export interface CreateTaskInput {
   workspaceId: string
   prompt: string
+  validation?: {
+    commands?: Array<
+      string | { command: string; cwd?: string; reason?: string }
+    >
+    maxFixAttempts?: number
+  }
 }
 
 export interface CommitTaskInput {
@@ -167,6 +173,7 @@ export class TaskService {
         baseCommit: repositoryInfo.currentCommit,
         workspaceSnapshotHash: snapshot?.hash,
         worktreePath: worktree.worktreePath,
+        validation: input.validation,
         createdAt: now,
         updatedAt: now,
       }

@@ -6,6 +6,8 @@ import type {
   TaskMemoryFile,
   TaskMemoryFileName,
   TaskMemorySnapshot,
+  ValidationPlan,
+  ValidationSummary,
   Workspace,
 } from '../types'
 
@@ -139,6 +141,13 @@ export class RunnerApiClient {
     return this.request(`/api/tasks/${encodeURIComponent(id)}/run`, {
       method: 'POST',
     })
+  }
+
+  async getTaskValidation(id: string): Promise<{
+    plan: ValidationPlan
+    summary: ValidationSummary
+  }> {
+    return this.request(`/api/tasks/${encodeURIComponent(id)}/validation`)
   }
 
   async getTaskDiff(id: string): Promise<DiffResult> {

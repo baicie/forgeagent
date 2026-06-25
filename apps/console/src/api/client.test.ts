@@ -265,4 +265,44 @@ describe('runner api client', () => {
       }),
     )
   })
+
+  it('gets task validation', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          plan: {
+            taskId: 'task_1',
+            commands: [{ command: 'pnpm test', cwd: '.', reason: 'Validate' }],
+            maxFixAttempts: 3,
+            fixAttempt: 0,
+            status: 'passed',
+            results: [],
+            createdAt: '2026-06-25T00:00:00.000Z',
+            updatedAt: '2026-06-25T00:00:00.000Z',
+          },
+          summary: {
+            status: 'passed',
+            passed: 1,
+            failed: 0,
+            rejected: 0,
+            total: 1,
+            fixAttempt: 0,
+            maxFixAttempts: 3,
+          },
+        }),
+      })),
+    )
+
+    const client = new RunnerApiClient()
+    const result = await client.getTaskValidation('task_1')
+
+    expect(result.summary.status).toBe('passed')
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/tasks/task_1/validation',
+      expect.objectContaining({ method: 'GET' }),
+    )
+  })
 })

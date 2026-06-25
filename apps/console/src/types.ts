@@ -46,6 +46,9 @@ export type TaskEventType =
   | 'memory.updated'
   | 'task.completed'
   | 'task.failed'
+  | 'validation.planned'
+  | 'validation.started'
+  | 'validation.finished'
 
 export interface TaskEvent {
   id: string
@@ -132,4 +135,59 @@ export interface ApiErrorPayload {
     message: string
     details?: unknown
   }
+}
+
+export interface ValidationResult {
+  command: string
+  cwd: string
+  status:
+    | 'pending'
+    | 'waiting_approval'
+    | 'running'
+    | 'passed'
+    | 'failed'
+    | 'rejected'
+    | 'skipped'
+  ok?: boolean
+  approvalId?: string
+  exitCode?: number | null
+  timedOut?: boolean
+  stdout?: string
+  stderr?: string
+  error?: string
+  startedAt?: string
+  finishedAt?: string
+}
+
+export interface ValidationPlan {
+  taskId: string
+  commands: Array<{
+    command: string
+    cwd: string
+    reason: string
+  }>
+  maxFixAttempts: number
+  fixAttempt: number
+  status:
+    | 'pending'
+    | 'waiting_approval'
+    | 'running'
+    | 'passed'
+    | 'failed'
+    | 'rejected'
+    | 'skipped'
+  results: ValidationResult[]
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ValidationSummary {
+  status: ValidationPlan['status']
+  passed: number
+  failed: number
+  rejected: number
+  total: number
+  fixAttempt: number
+  maxFixAttempts: number
+  failureSummary?: string
 }

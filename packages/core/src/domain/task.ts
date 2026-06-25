@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { TaskValidationInputSchema } from './validation'
 
 export const TaskStatusSchema = z.enum([
   'created',
@@ -24,6 +25,7 @@ export const TaskSchema = z.object({
   baseCommit: z.string().min(1),
   workspaceSnapshotHash: z.string().length(64).optional(),
   worktreePath: z.string().min(1),
+  validation: TaskValidationInputSchema.optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 })
@@ -33,6 +35,7 @@ export type Task = z.infer<typeof TaskSchema>
 export const CreateTaskInputSchema = z.object({
   workspaceId: z.string().min(1),
   prompt: z.string().min(1),
+  validation: TaskValidationInputSchema.optional(),
 })
 
 export type CreateTaskInput = z.infer<typeof CreateTaskInputSchema>

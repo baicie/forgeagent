@@ -24,6 +24,7 @@ import { TaskMemoryService } from './services/taskMemoryService'
 import { TaskService } from './services/taskService'
 import { WorkspaceService } from './services/workspaceService'
 import { DiskSpaceService } from './storage/disk'
+import { ValidationService } from './validation/validationService'
 
 export interface RunnerContext {
   config: RunnerConfig
@@ -49,6 +50,7 @@ export interface RunnerContext {
   taskMemoryService: TaskMemoryService
   contextPackBuilder: ContextPackBuilder
   toolRegistry: ToolRegistry
+  validationService: ValidationService
 }
 
 export function createRunnerContext(
@@ -95,6 +97,12 @@ export function createRunnerContext(
 
   const approvalService = new ApprovalService(db, eventService, auditService)
 
+  const validationService = new ValidationService(
+    approvalService,
+    eventService,
+    taskMemoryService,
+  )
+
   const approvalGate = new ApprovalGate({
     approvalService,
     taskService,
@@ -103,6 +111,7 @@ export function createRunnerContext(
     shellExecutor,
     commandPolicy,
     taskMemoryService,
+    validationService,
   })
 
   const modelGateway = new OpenAICompatibleModelGateway(
@@ -133,6 +142,7 @@ export function createRunnerContext(
     taskMemoryService,
     contextPackBuilder,
     toolRegistry,
+    validationService,
   }
 
   context.agentLoop = new ForgeAgentLoop(context, modelGateway)

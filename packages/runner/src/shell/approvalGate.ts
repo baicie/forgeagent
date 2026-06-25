@@ -6,6 +6,7 @@ import type { TaskMemoryService } from '../services/taskMemoryService'
 import type { TaskService } from '../services/taskService'
 import type { CommandPolicy, CommandPolicyEvaluation } from './commandPolicy'
 import type { ShellExecutor, ShellExecutionResult } from './shellExecutor'
+import type { ValidationService } from '../validation/validationService'
 
 export interface ApprovalGateOptions {
   approvalService: ApprovalService
@@ -15,6 +16,7 @@ export interface ApprovalGateOptions {
   shellExecutor: ShellExecutor
   commandPolicy: CommandPolicy
   taskMemoryService?: TaskMemoryService
+  validationService?: ValidationService
 }
 
 export interface RejectedCommandResult {
@@ -184,6 +186,19 @@ export class ApprovalGate {
       error: result.error,
     })
 
+    await this.options.validationService?.recordCommandResult({
+      taskId: approval.taskId,
+      command: approval.command,
+      cwd,
+      ok: result.ok,
+      approvalId: approval.id,
+      exitCode: result.exitCode,
+      timedOut: result.timedOut,
+      stdout: result.stdout,
+      stderr: result.stderr,
+      error: result.error,
+    })
+
     return {
       approval: approved,
       policy,
@@ -247,6 +262,15 @@ export class ApprovalGate {
       ok: false,
       rejected: true,
       reason,
+    })
+
+    await this.options.validationService?.recordCommandResult({
+      taskId: approval.taskId,
+      command: approval.command,
+      cwd: approval.cwd,
+      ok: false,
+      approvalId: approval.id,
+      error: reason ?? 'Command rejected by user',
     })
 
     return {

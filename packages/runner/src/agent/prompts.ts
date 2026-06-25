@@ -315,3 +315,50 @@ ${input.truncated ? '注意：原始工具输出已被截断。' : ''}
 
 请基于 Context Pack 和这个工具结果继续下一步。不要重复已经完成的工具调用。`
 }
+
+export function createValidationRequiredPrompt(input: {
+  commands: string[]
+  maxFixAttempts: number
+}): string {
+  return `当前 task 已经产生 diff，ForgeAgent 要求在 final 之前完成验证。
+
+验证命令：
+${input.commands.map(command => `- ${command}`).join('\n')}
+
+规则：
+1. 不要直接 final。
+2. 先使用 get_diff 确认修改。
+3. Runner 会请求用户审批执行验证命令。
+4. 验证失败后，你必须根据失败日志继续修复。
+5. 最多修复尝试次数：${input.maxFixAttempts}。`
+}
+
+export function createValidationFeedbackPrompt(input: {
+  failureSummary: string
+  fixAttempt: number
+  maxFixAttempts: number
+}): string {
+  return `验证失败。
+
+Fix attempt: ${input.fixAttempt}/${input.maxFixAttempts}
+
+失败摘要：
+${input.failureSummary}
+
+请基于失败日志继续修复。修复后必须再次 get_diff，并等待 Runner 发起验证。`
+}
+
+export function createValidationFinalRiskPrompt(input: {
+  failureSummary: string
+  fixAttempt: number
+  maxFixAttempts: number
+}): string {
+  return `验证仍然失败，并且已经达到最大修复尝试次数。
+
+Fix attempt: ${input.fixAttempt}/${input.maxFixAttempts}
+
+失败摘要：
+${input.failureSummary}
+
+你可以 final，但必须在 summary.risks 中明确说明验证失败和剩余风险。`
+}

@@ -56,6 +56,20 @@ export function registerTaskRoutes(
     context.taskService.get(request.params.id),
   )
 
+  app.get<{
+    Params: { id: string }
+  }>('/api/tasks/:id/validation', async request => {
+    const task = context.taskService.get(request.params.id)
+    const plan =
+      context.validationService.getPlan(task.id) ??
+      (await context.validationService.createPlan({ task }))
+
+    return {
+      plan,
+      summary: context.validationService.summarize(plan),
+    }
+  })
+
   app.post('/api/tasks', async (request, reply) => {
     const input = parseBody(CreateTaskInputSchema, request.body)
     const task = await context.taskService.create(input)

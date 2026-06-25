@@ -347,3 +347,123 @@ pre {
     grid-template-columns: 1fr;
   }
 }
+
+.validation-panel {
+  padding: 12px 0;
+}
+
+.validation-panel--empty {
+  text-align: center;
+}
+
+.validation-panel__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.validation-panel__title {
+  font-size: 14px;
+}
+
+.validation-panel__meta {
+  display: flex;
+  gap: 12px;
+  flex: 1;
+  flex-wrap: wrap;
+}
+
+.validation-panel__status {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.validation-panel__score,
+.validation-panel__attempts {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.validation-panel__refresh {
+  padding: 4px 10px;
+  font-size: 12px;
+  background: var(--color-border);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.validation-panel__refresh:hover {
+  background: var(--color-bg-hover);
+}
+
+.validation-panel__empty {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  padding: 8px 0;
+}
+
+.validation-panel__commands {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+
+.validation-panel__command {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 13px;
+}
+
+.validation-panel__icon {
+  font-size: 14px;
+  width: 16px;
+  text-align: center;
+}
+
+.validation-panel__command-text {
+  flex: 1;
+  font-size: 12px;
+  background: var(--color-bg);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.validation-panel__command-status {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.validation-panel__exit-code {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.validation-panel__failure {
+  margin-top: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.validation-panel__failure summary {
+  padding: 6px 10px;
+  background: var(--color-bg);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.validation-panel__failure-text {
+  margin: 0;
+  padding: 8px 10px;
+  font-size: 11px;
+  background: var(--color-bg);
+  border-top: 1px solid var(--color-border);
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 200px;
+  overflow-y: auto;
+}
