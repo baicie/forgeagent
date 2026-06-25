@@ -105,14 +105,54 @@ Phase 13 起，每个 task 都会维护外部任务记忆：
   decisions.md
   changed_files.md
   test_results.md
+  context_pack.md
   final_summary.md
 ```
+
+## Phase 14: Context Pack Builder
+
+每次 Agent Loop 开始前生成 Context Pack：
+
+```txt
+~/.forgeagent/runs/<taskId>/context_pack.md
+```
+
+Context Pack 来源：
+
+- 用户任务 prompt
+- AGENTS.md
+- .agents/AGENTS.md
+- .agents/rules/\*
+- .agents/skills/\*
+- task_plan.md
+- progress.md
+- findings.md
+- 当前 diff
+- 相关文件摘要
+- allowed tools
+- blocked paths
+- validation commands
+
+目录约定：
+
+```txt
+.agents/        项目级 Agent 规则源，提交进 Git
+~/.forgeagent/  ForgeAgent 本地运行态，不提交进 Git
+```
+
+Context Pack 约束：
+
+1. 不读取敏感文件。
+2. 不包含 .env、key、pem、node_modules、dist、.git。
+3. 有最大字符数限制（默认 30_000）。
+4. 作为模型主上下文。
+5. 事件历史只作为恢复辅助。
 
 这些文件不是给人看的"装饰文档"，而是 Agent Harness 的外部工作记忆。
 
 规则：
 
-1. 创建 task 后自动生成 task_plan.md。
+1. 创建 task 后自动生成 task_plan.md 和 context_pack.md。
 2. 每次状态变化更新 progress.md。
 3. 每轮 Agent step 更新 progress.md。
 4. search_text/read_file 结果写入 findings.md。

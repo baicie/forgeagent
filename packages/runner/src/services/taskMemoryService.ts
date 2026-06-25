@@ -208,6 +208,8 @@ function createInitialContent(task: Task, file: TaskMemoryFileName): string {
       return createInitialChangedFiles()
     case 'test_results.md':
       return createInitialTestResults()
+    case 'context_pack.md':
+      return '# Context Pack\n\nContext pack has not been generated yet.\n'
     case 'final_summary.md':
       return createInitialFinalSummary()
     default: {

@@ -811,7 +811,7 @@ describe('runner server', { timeout: 20000 }, () => {
       })
 
       expect(memoryResponse.statusCode).toBe(200)
-      expect(memoryResponse.json().files).toHaveLength(7)
+      expect(memoryResponse.json().files).toHaveLength(8)
     } finally {
       await fixture.cleanup()
       await app.close()

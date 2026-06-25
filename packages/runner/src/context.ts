@@ -1,3 +1,4 @@
+import { ContextPackBuilder } from './context/contextPackBuilder'
 import type { RunnerConfig } from './config'
 import type { RunnerDb } from './db'
 import { ForgeAgentLoop } from './agent/loop'
@@ -45,6 +46,7 @@ export interface RunnerContext {
   approvalService: ApprovalService
   auditService: AuditService
   taskMemoryService: TaskMemoryService
+  contextPackBuilder: ContextPackBuilder
 }
 
 export function createRunnerContext(
@@ -66,6 +68,11 @@ export function createRunnerContext(
   const eventService = new EventService(db)
   const auditService = new AuditService(db)
   const taskMemoryService = new TaskMemoryService(config, eventService)
+  const contextPackBuilder = new ContextPackBuilder(
+    config,
+    taskMemoryService,
+    gitDiffService,
+  )
   const workspaceService = new WorkspaceService(db, gitRepositoryService)
   const taskService = new TaskService(
     db,
@@ -121,6 +128,7 @@ export function createRunnerContext(
     approvalService,
     auditService,
     taskMemoryService,
+    contextPackBuilder,
   }
 
   context.agentLoop = new ForgeAgentLoop(context, modelGateway)

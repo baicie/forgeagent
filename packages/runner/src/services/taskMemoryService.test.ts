@@ -54,6 +54,7 @@ describe('taskMemoryService', () => {
       'decisions.md',
       'changed_files.md',
       'test_results.md',
+      'context_pack.md',
       'final_summary.md',
     ])
     expect(
@@ -168,7 +169,7 @@ describe('taskMemoryService', () => {
 
     const snapshot = await service.readTaskMemory(task.id)
 
-    expect(snapshot.files).toHaveLength(7)
+    expect(snapshot.files).toHaveLength(8)
     expect(
       snapshot.files.find(file => file.file === 'task_plan.md')?.content,
     ).toContain('Fix the bug')

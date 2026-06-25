@@ -104,7 +104,6 @@ export function createTaskEventHistoryPrompt(input: {
       [
         'agent.message',
         'tool.started',
-        'tool.output',
         'tool.finished',
         'approval.required',
         'approval.resolved',
@@ -152,4 +151,42 @@ ${JSON.stringify(input.result, null, 2)}
 ${input.truncated ? '注意：工具输出已被截断。' : ''}
 
 请继续下一步。`
+}
+
+export function createContextPackPrompt(contextPack: string): string {
+  return `以下是 ForgeAgent 为本次 task 构建的 Context Pack。
+
+你必须优先依据 Context Pack 工作：
+1. 先遵守 Project Rules。
+2. 只关注 Relevant Files / Key Findings / Current Progress。
+3. 不要重复已经在 Current Progress 里完成的工作。
+4. 如果 Context Pack 信息不足，再使用 list_files/search_text/read_file 获取更多上下文。
+5. 不要读取或修改 Blocked Paths。
+6. 修改后应使用 get_diff 查看结果；必要时用 run_command 请求验证。
+
+Context Pack:
+${contextPack}`
+}
+
+export function createCompactToolResultPrompt(input: {
+  toolName: string
+  result: unknown
+  truncated: boolean
+  maxChars: number
+}): string {
+  const serialized = JSON.stringify(input.result, null, 2)
+  const suffix = '\n...<tool result truncated>'
+  const compact =
+    serialized.length > input.maxChars
+      ? `${serialized.slice(0, Math.max(0, input.maxChars - suffix.length))}${suffix}`
+      : serialized
+
+  return `工具 ${input.toolName} 执行完成。
+
+以下是压缩后的工具结果：
+${compact}
+
+${input.truncated ? '注意：原始工具输出已被截断。' : ''}
+
+请基于 Context Pack 和这个工具结果继续下一步。不要重复已经完成的工具调用。`
 }

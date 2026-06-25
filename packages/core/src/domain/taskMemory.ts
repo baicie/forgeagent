@@ -7,6 +7,7 @@ export const TaskMemoryFileNameSchema = z.enum([
   'decisions.md',
   'changed_files.md',
   'test_results.md',
+  'context_pack.md',
   'final_summary.md',
 ])
 

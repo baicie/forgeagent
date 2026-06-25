@@ -7,11 +7,15 @@ export interface RunnerConfig {
   dataDir: string
   dbFile: string
   minFreeDiskBytes: number
+  contextPackMaxChars: number
+  compactToolResultMaxChars: number
 }
 
 export const DEFAULT_RUNNER_HOST = '127.0.0.1'
 export const DEFAULT_RUNNER_PORT = 17890
 export const DEFAULT_MIN_FREE_DISK_BYTES = 2 * 1024 * 1024 * 1024
+export const DEFAULT_CONTEXT_PACK_MAX_CHARS = 30_000
+export const DEFAULT_COMPACT_TOOL_RESULT_MAX_CHARS = 8_000
 export const RUNNER_NAME = 'forgeagent-runner'
 export const RUNNER_VERSION = '0.1.0'
 
@@ -22,6 +26,8 @@ export interface LoadRunnerConfigOptions {
   port?: number
   dataDir?: string
   minFreeDiskBytes?: number
+  contextPackMaxChars?: number
+  compactToolResultMaxChars?: number
 }
 
 export function resolveDataDir(dataDir?: string): string {
@@ -74,6 +80,20 @@ export function parseByteSize(value: unknown, fallback: number): number {
   return Math.floor(amount * multiplier)
 }
 
+function readPositiveIntEnv(
+  env: Record<string, string | undefined>,
+  key: string,
+  fallback: number,
+): number {
+  const raw = env[key]
+
+  if (!raw) return fallback
+
+  const parsed = Number.parseInt(raw, 10)
+
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
+}
+
 export function loadRunnerConfig(
   options: LoadRunnerConfigOptions = {},
 ): RunnerConfig {
@@ -97,11 +117,27 @@ export function loadRunnerConfig(
       DEFAULT_MIN_FREE_DISK_BYTES,
     )
 
+  const env = process.env as Record<string, string | undefined>
+
   return {
     host,
     port,
     dataDir,
     dbFile: resolve(dataDir, 'runner-db.json'),
     minFreeDiskBytes,
+    contextPackMaxChars:
+      options.contextPackMaxChars ??
+      readPositiveIntEnv(
+        env,
+        'FORGEAGENT_CONTEXT_PACK_MAX_CHARS',
+        DEFAULT_CONTEXT_PACK_MAX_CHARS,
+      ),
+    compactToolResultMaxChars:
+      options.compactToolResultMaxChars ??
+      readPositiveIntEnv(
+        env,
+        'FORGEAGENT_COMPACT_TOOL_RESULT_MAX_CHARS',
+        DEFAULT_COMPACT_TOOL_RESULT_MAX_CHARS,
+      ),
   }
 }

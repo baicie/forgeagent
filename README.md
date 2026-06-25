@@ -176,7 +176,24 @@ forgeagent task memory <taskId> --file findings.md
 ~/.forgeagent/runs/<taskId>/
 ```
 
-包含 task_plan、progress、findings、decisions、changed_files、test_results 和 final_summary。
+包含 task_plan、progress、findings、decisions、changed_files、test_results、context_pack 和 final_summary。
+
+### 7.1 查看 Context Pack
+
+```bash
+forgeagent task memory <taskId> --file context_pack.md
+```
+
+Context Pack 每次 Agent Loop 开始前生成，包含任务目标、项目规则、相关文件、关键发现、当前进度、当前 diff、允许工具、禁止路径和验证命令。
+
+项目级 Agent 规则从以下位置读取：
+
+```txt
+AGENTS.md
+.agents/AGENTS.md
+.agents/rules/*
+.agents/skills/*
+```
 
 ### 8. 交付任务
 

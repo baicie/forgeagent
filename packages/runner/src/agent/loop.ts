@@ -19,11 +19,12 @@ import type {
   OpenAICompatibleModelGateway,
 } from './model'
 import {
+  createCompactToolResultPrompt,
+  createContextPackPrompt,
   createJsonRetryPrompt,
   createSystemPrompt,
   createTaskEventHistoryPrompt,
   createTaskPrompt,
-  createToolResultPrompt,
 } from './prompts'
 import { normalizeFinalSummary, parseAgentStepResponse } from './json'
 import type { AgentStepResponse, AgentToolName } from './json'
@@ -33,12 +34,14 @@ export const DEFAULT_MAX_AGENT_STEPS = 30
 export const DEFAULT_MAX_TOOL_OUTPUT_CHARS = 20_000
 export const DEFAULT_JSON_RETRY_LIMIT = 2
 export const DEFAULT_MAX_EVENT_HISTORY_CHARS = 30_000
+export const DEFAULT_COMPACT_TOOL_RESULT_CHARS = 8_000
 
 export interface AgentLoopOptions {
   maxSteps?: number
   maxToolOutputChars?: number
   jsonRetryLimit?: number
   maxEventHistoryChars?: number
+  compactToolResultChars?: number
 }
 
 export interface AgentLoopResult {
@@ -83,6 +86,18 @@ export class ForgeAgentLoop {
 
     await this.ensureRunning(runContext.task.id)
 
+    const latestTask = this.runner.taskService.get(taskId)
+
+    const contextPack = await this.runner.contextPackBuilder.build({
+      task: latestTask,
+      workspace: runContext.workspace,
+    })
+
+    const compactChars =
+      this.options.compactToolResultChars ??
+      this.runner.config.compactToolResultMaxChars ??
+      DEFAULT_COMPACT_TOOL_RESULT_CHARS
+
     const messages: ChatMessage[] = [
       {
         role: 'system',
@@ -91,11 +106,15 @@ export class ForgeAgentLoop {
       {
         role: 'user',
         content: createTaskPrompt({
-          prompt: runContext.task.prompt,
-          worktreePath: runContext.task.worktreePath,
-          baseBranch: runContext.task.baseBranch,
-          baseCommit: runContext.task.baseCommit,
+          prompt: latestTask.prompt,
+          worktreePath: latestTask.worktreePath,
+          baseBranch: latestTask.baseBranch,
+          baseCommit: latestTask.baseCommit,
         }),
+      },
+      {
+        role: 'user',
+        content: createContextPackPrompt(contextPack.content),
       },
     ]
 
@@ -201,10 +220,11 @@ export class ForgeAgentLoop {
 
       messages.push({
         role: 'user',
-        content: createToolResultPrompt({
+        content: createCompactToolResultPrompt({
           toolName: action.name,
           result: serializedToolResult.value,
           truncated: serializedToolResult.truncated,
+          maxChars: compactChars,
         }),
       })
 

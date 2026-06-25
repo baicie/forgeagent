@@ -20,6 +20,7 @@ import { TaskService } from '../services/taskService'
 import type { WorkspaceService } from '../services/workspaceService'
 import type { ModelGenerateInput } from './model'
 import { OpenAICompatibleModelGateway } from './model'
+import { ContextPackBuilder } from '../context/contextPackBuilder'
 
 const { ForgeAgentLoop } = await import('./loop')
 
@@ -55,6 +56,7 @@ class TestableForgeAgentLoop extends ForgeAgentLoop {
 
 class FakeModelGateway extends OpenAICompatibleModelGateway {
   private index = 0
+  readonly inputs: ModelGenerateInput[] = []
 
   constructor(private readonly outputs: string[]) {
     super({
@@ -64,8 +66,10 @@ class FakeModelGateway extends OpenAICompatibleModelGateway {
   }
 
   override async generate(
-    _input: ModelGenerateInput,
+    input: ModelGenerateInput,
   ): Promise<{ content: string; raw?: unknown }> {
+    this.inputs.push(input)
+
     const output = this.outputs[this.index] ?? this.outputs.at(-1) ?? ''
     this.index += 1
 
@@ -151,6 +155,11 @@ function createLoopFixture(
   })
 
   const taskMemoryService = new TaskMemoryService(config, eventService)
+  const contextPackBuilder = new ContextPackBuilder(
+    config,
+    taskMemoryService,
+    gitDiffService,
+  )
 
   const taskService = new TaskService(
     db,
@@ -192,6 +201,7 @@ function createLoopFixture(
     approvalService,
     auditService,
     taskMemoryService,
+    contextPackBuilder,
   } as unknown as RunnerContext
 
   runner.approvalGate = new ApprovalGate({
@@ -239,6 +249,8 @@ function createLoopFixture(
     loop,
     taskService,
     runner,
+    modelGateway: runner.modelGateway as FakeModelGateway,
+    contextPackBuilder,
   }
 }
 
@@ -599,5 +611,43 @@ describe('ForgeAgentLoop', () => {
     expect(progress.content).toContain('Agent step 1')
     expect(findings.content).toContain('Search: Git command failed')
     expect(finalSummary.content).toContain('记录了搜索发现')
+  })
+
+  it('builds context pack before model generation', async () => {
+    const { loop, taskService, runner, modelGateway } = createLoopFixture([
+      JSON.stringify({
+        message: '完成',
+        final: true,
+        summary: {
+          changes: ['no changes'],
+          tests: ['not run'],
+          risks: ['none'],
+          nextSteps: ['review context pack'],
+        },
+      }),
+    ])
+
+    const task = await taskService.create({
+      workspaceId: 'ws_1',
+      prompt: 'fix runner diff error',
+    })
+
+    const result = await loop.run(task.id)
+
+    expect(result.status).toBe('completed')
+
+    const contextPack = await runner.taskMemoryService.readTaskMemoryFile(
+      task.id,
+      'context_pack.md',
+    )
+
+    expect(contextPack.content).toContain('# Context Pack')
+    expect(contextPack.content).toContain('fix runner diff error')
+
+    const firstInput = modelGateway.inputs[0]
+    const serializedMessages = JSON.stringify(firstInput.messages)
+
+    expect(serializedMessages).toContain('Context Pack')
+    expect(serializedMessages).toContain('Project Rules')
   })
 })
