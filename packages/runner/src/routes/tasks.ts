@@ -78,6 +78,20 @@ export function registerTaskRoutes(
     }
   })
 
+  app.get<{
+    Params: { id: string }
+  }>('/api/tasks/:id/review', async request => {
+    const review = context.reviewerService.getReview(request.params.id)
+    return { review }
+  })
+
+  app.post<{
+    Params: { id: string }
+  }>('/api/tasks/:id/review', async request => {
+    const review = await context.reviewerService.review(request.params.id)
+    return { review }
+  })
+
   app.post('/api/tasks', async (request, reply) => {
     const input = parseBody(CreateTaskInputSchema, request.body)
     const task = await context.taskService.create(input)

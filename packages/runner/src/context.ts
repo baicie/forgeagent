@@ -25,12 +25,14 @@ import { TaskService } from './services/taskService'
 import { WorkspaceService } from './services/workspaceService'
 import { DiskSpaceService } from './storage/disk'
 import { ValidationService } from './validation/validationService'
+import { ReviewerService } from './review/reviewerService'
 
 export interface RunnerContext {
   config: RunnerConfig
   db: RunnerDb
   modelGateway: OpenAICompatibleModelGateway
   agentLoop: ForgeAgentLoop
+  reviewerService: ReviewerService
   gitClient: GitClient
   gitRepositoryService: GitRepositoryService
   gitWorktreeService: GitWorktreeService
@@ -123,6 +125,7 @@ export function createRunnerContext(
     db,
     modelGateway,
     agentLoop: undefined as unknown as ForgeAgentLoop,
+    reviewerService: undefined as unknown as ReviewerService,
     gitClient,
     gitRepositoryService,
     gitWorktreeService,
@@ -146,6 +149,7 @@ export function createRunnerContext(
   }
 
   context.agentLoop = new ForgeAgentLoop(context, modelGateway)
+  context.reviewerService = new ReviewerService(context, modelGateway)
 
   return context
 }

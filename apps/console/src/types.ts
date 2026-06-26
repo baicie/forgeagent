@@ -49,6 +49,8 @@ export type TaskEventType =
   | 'validation.planned'
   | 'validation.started'
   | 'validation.finished'
+  | 'review.started'
+  | 'review.finished'
 
 export interface TaskEvent {
   id: string
@@ -190,4 +192,38 @@ export interface ValidationSummary {
   fixAttempt: number
   maxFixAttempts: number
   failureSummary?: string
+}
+
+export type ReviewStatus = 'passed' | 'warning' | 'failed'
+export type ReviewRecommendation = 'apply' | 'commit' | 'needs_fix' | 'reject'
+
+export interface ReviewFinding {
+  severity: 'info' | 'warning' | 'error'
+  category:
+    | 'goal'
+    | 'unrelated_change'
+    | 'project_rule'
+    | 'test'
+    | 'security'
+    | 'compatibility'
+    | 'maintainability'
+  message: string
+  file?: string
+  line?: number
+  suggestion?: string
+}
+
+export interface ReviewResult {
+  taskId: string
+  status: ReviewStatus
+  recommendation: ReviewRecommendation
+  goalCompleted: boolean
+  hasUnrelatedChanges: boolean
+  violatesProjectRules: boolean
+  missingTests: boolean
+  hasSecurityRisk: boolean
+  hasCompatibilityRisk: boolean
+  summary: string
+  findings: ReviewFinding[]
+  reviewedAt: string
 }

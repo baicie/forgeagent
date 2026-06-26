@@ -2,6 +2,7 @@ import type {
   ApiErrorPayload,
   DiffResult,
   ListResponse,
+  ReviewResult,
   Task,
   TaskMemoryFile,
   TaskMemoryFileName,
@@ -148,6 +149,16 @@ export class RunnerApiClient {
     summary: ValidationSummary
   }> {
     return this.request(`/api/tasks/${encodeURIComponent(id)}/validation`)
+  }
+
+  async getTaskReview(id: string): Promise<{ review: ReviewResult }> {
+    return this.request(`/api/tasks/${encodeURIComponent(id)}/review`)
+  }
+
+  async reviewTask(id: string): Promise<{ review: ReviewResult }> {
+    return this.request(`/api/tasks/${encodeURIComponent(id)}/review`, {
+      method: 'POST',
+    })
   }
 
   async getTaskDiff(id: string): Promise<DiffResult> {

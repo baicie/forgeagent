@@ -197,6 +197,16 @@ export class RunnerApiClient {
     return this.request(`/api/tasks/${encodeURIComponent(id)}/validation`)
   }
 
+  async getTaskReview(id: string): Promise<{ review: unknown }> {
+    return this.request(`/api/tasks/${encodeURIComponent(id)}/review`)
+  }
+
+  async reviewTask(id: string): Promise<{ review: unknown }> {
+    return this.request(`/api/tasks/${encodeURIComponent(id)}/review`, {
+      method: 'POST',
+    })
+  }
+
   async createTask(input: CreateTaskInput): Promise<Task> {
     return this.request('/api/tasks', {
       method: 'POST',

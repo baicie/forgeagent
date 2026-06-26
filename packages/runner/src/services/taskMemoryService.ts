@@ -212,6 +212,8 @@ function createInitialContent(task: Task, file: TaskMemoryFileName): string {
       return '# Context Pack\n\nContext pack has not been generated yet.\n'
     case 'final_summary.md':
       return createInitialFinalSummary()
+    case 'review_report.md':
+      return '# Review Report\n\nReview has not been run yet.\n'
     default: {
       const _exhaustive: never = file
       return _exhaustive

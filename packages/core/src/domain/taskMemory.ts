@@ -9,6 +9,7 @@ export const TaskMemoryFileNameSchema = z.enum([
   'test_results.md',
   'context_pack.md',
   'final_summary.md',
+  'review_report.md',
 ])
 
 export type TaskMemoryFileName = z.infer<typeof TaskMemoryFileNameSchema>

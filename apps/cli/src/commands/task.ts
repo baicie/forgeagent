@@ -325,6 +325,32 @@ export function createTaskCommand(
       console.log(formatTask(task))
     })
 
+  command
+    .command('review')
+    .description('Run read-only reviewer for a completed task')
+    .argument('<taskId>', 'Task id')
+    .option('--show', 'Only show existing review result')
+    .action(async (taskId: string, actionOptions: { show?: boolean }) => {
+      const client = clientFactory()
+
+      if (actionOptions.show) {
+        const result = await client.getTaskReview(taskId)
+
+        if (!result.review) {
+          console.log(pc.yellow('No review result.'))
+          return
+        }
+
+        console.log(JSON.stringify(result.review, null, 2))
+        return
+      }
+
+      const result = await client.reviewTask(taskId)
+
+      console.log(pc.green('Review completed'))
+      console.log(JSON.stringify(result.review, null, 2))
+    })
+
   return command
 }
 

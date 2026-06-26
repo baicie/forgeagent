@@ -220,7 +220,19 @@ forgeagent task create \
 
 Agent 修改文件并尝试 final 时，如果存在验证命令，Runner 会自动请求审批执行验证命令。验证失败后，Agent 会收到失败摘要并继续修复，最多尝试 `maxFixAttempts` 次。
 
-### 9. 交付任务
+### 9. 只读审查
+
+任务 `completed` 后，可以运行只读审查：
+
+```bash
+forgeagent task review <taskId>
+forgeagent task review <taskId> --show
+forgeagent task memory <taskId> --file review_report.md
+```
+
+Reviewer 只允许 read_file / search_text / get_diff，不允许修改文件或执行命令。
+
+### 10. 交付任务
 
 把修改应用到原仓库：
 
@@ -240,7 +252,7 @@ forgeagent task commit <taskId> --message "feat: update readme"
 forgeagent task discard <taskId>
 ```
 
-### 10. 清理所有任务
+### 11. 清理所有任务
 
 长期使用后可以一键清理所有 task worktree 和记录：
 
@@ -324,6 +336,8 @@ forgeagent task create --workspace <id> --prompt "..." --validate "pnpm typechec
 forgeagent task run <taskId>
 forgeagent task watch <taskId>
 forgeagent task diff <taskId>
+forgeagent task review <taskId>
+forgeagent task review <taskId> --show
 forgeagent task memory <taskId>
 forgeagent task memory <taskId> --file <file>
 forgeagent task apply <taskId>
@@ -367,6 +381,7 @@ docs/runner.md
 docs/agent-loop.md
 docs/tools.md
 docs/validation.md
+docs/reviewer.md
 ```
 
 ## Core Harness Tools

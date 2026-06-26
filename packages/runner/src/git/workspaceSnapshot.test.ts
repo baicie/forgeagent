@@ -6,7 +6,7 @@ import { GitClient } from './gitClient'
 import { GitWorkspaceSnapshotService } from './workspaceSnapshot'
 import { createGitFixture } from '../test/git-fixtures'
 
-describe('GitWorkspaceSnapshotService', () => {
+describe('gitWorkspaceSnapshotService', () => {
   function createWorktreeDir(gitRoot: string): string {
     const branchName = `test-wt-${Date.now()}-${Math.random().toString(36).slice(2)}`
     const worktreeDir = join(
@@ -118,18 +118,14 @@ describe('GitWorkspaceSnapshotService', () => {
       const worktreeDir = createWorktreeDir(fixture.repoPath)
 
       try {
-        await writeFile(
-          join(fixture.repoPath, 'untracked.txt'),
-          'hello\n',
-        )
+        await writeFile(join(fixture.repoPath, 'untracked.txt'), 'hello\n')
         const snapshot = await service.capture(fixture.repoPath)
 
         await service.initializeWorktree(snapshot, worktreeDir)
 
-        const status = await new GitClient().output(
-          ['status', '--porcelain'],
-          { cwd: worktreeDir },
-        )
+        const status = await new GitClient().output(['status', '--porcelain'], {
+          cwd: worktreeDir,
+        })
 
         expect(status).toBe('')
       } finally {
@@ -146,18 +142,14 @@ describe('GitWorkspaceSnapshotService', () => {
       const worktreeDir = createWorktreeDir(fixture.repoPath)
 
       try {
-        await writeFile(
-          join(fixture.repoPath, 'untracked.txt'),
-          'hello\n',
-        )
+        await writeFile(join(fixture.repoPath, 'untracked.txt'), 'hello\n')
         const snapshot = await service.capture(fixture.repoPath)
 
         await service.initializeWorktree(snapshot, worktreeDir)
 
-        const status = await new GitClient().output(
-          ['status', '--porcelain'],
-          { cwd: worktreeDir },
-        )
+        const status = await new GitClient().output(['status', '--porcelain'], {
+          cwd: worktreeDir,
+        })
 
         expect(status).toBe('')
         const files = await new GitClient().output(['ls-files'], {

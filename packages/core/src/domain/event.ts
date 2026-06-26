@@ -6,6 +6,7 @@ import {
   ToolStartedEventPayloadSchema,
 } from './tool'
 import { ValidationEventPayloadSchema } from './validation'
+import { ReviewEventPayloadSchema } from './review'
 
 export const TaskEventTypeSchema = z.enum([
   'task.status',
@@ -22,6 +23,8 @@ export const TaskEventTypeSchema = z.enum([
   'validation.planned',
   'validation.started',
   'validation.finished',
+  'review.started',
+  'review.finished',
 ])
 
 export type TaskEventType = z.infer<typeof TaskEventTypeSchema>
@@ -148,6 +151,10 @@ export function parseTaskEventPayload(
     case 'validation.started':
     case 'validation.finished':
       return ValidationEventPayloadSchema.parse(payload)
+
+    case 'review.started':
+    case 'review.finished':
+      return ReviewEventPayloadSchema.parse(payload)
   }
 }
 

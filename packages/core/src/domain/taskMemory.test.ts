@@ -15,6 +15,7 @@ describe('taskMemory domain', () => {
       'test_results.md',
       'context_pack.md',
       'final_summary.md',
+      'review_report.md',
     ])
   })
 

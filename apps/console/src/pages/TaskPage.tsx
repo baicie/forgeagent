@@ -9,8 +9,10 @@ import { TaskMemoryPanel } from '../components/TaskMemoryPanel'
 import { TaskTimeline } from '../components/TaskTimeline'
 import { ToolCallView } from '../components/ToolCallView'
 import { ValidationPanel } from '../components/ValidationPanel'
+import { ReviewPanel, ReviewRiskBanner } from '../components/ReviewPanel'
 import type {
   DiffResult,
+  ReviewResult,
   Task,
   TaskEvent,
   TaskMemorySnapshot,
@@ -34,6 +36,7 @@ export function TaskPage(props: TaskPageProps) {
   const [validation, setValidation] = useState<
     { plan: ValidationPlan; summary: ValidationSummary } | undefined
   >()
+  const [review, setReview] = useState<ReviewResult | undefined>()
   const [error, setError] = useState<unknown>()
   const [notice, setNotice] = useState<string | undefined>()
   const [busy, setBusy] = useState(false)
@@ -96,16 +99,36 @@ export function TaskPage(props: TaskPageProps) {
     }
   }
 
+  const loadReview = async () => {
+    setError(undefined)
+
+    try {
+      const result = await props.client.getTaskReview(props.taskId)
+      setReview(result.review ?? undefined)
+    } catch {
+      // review is optional
+    }
+  }
+
+  const runReview = async () => {
+    await runAction(async () => {
+      await props.client.reviewTask(props.taskId)
+      await loadReview()
+    })
+  }
+
   useEffect(() => {
     setEvents([])
     setDiff(undefined)
     setMemory(undefined)
     setValidation(undefined)
+    setReview(undefined)
     setNotice(undefined)
     void loadTask()
     void loadDiff()
     void loadMemory()
     void loadValidation()
+    void loadReview()
 
     const unsubscribe = subscribeTaskEvents({
       baseUrl: props.client.baseUrl,
@@ -131,6 +154,13 @@ export function TaskPage(props: TaskPageProps) {
           event.type === 'validation.finished'
         ) {
           void loadValidation()
+        }
+
+        if (
+          event.type === 'review.started' ||
+          event.type === 'review.finished'
+        ) {
+          void loadReview()
         }
 
         if (event.type === 'task.completed') {
@@ -160,6 +190,7 @@ export function TaskPage(props: TaskPageProps) {
       await loadTask()
       await loadDiff()
       await loadValidation()
+      await loadReview()
     })
   }
 
@@ -168,6 +199,7 @@ export function TaskPage(props: TaskPageProps) {
       await props.client.rejectApproval(approvalId, { reason })
       await loadTask()
       await loadValidation()
+      await loadReview()
     })
   }
 
@@ -273,6 +305,7 @@ export function TaskPage(props: TaskPageProps) {
         <button disabled={busy} type="button" onClick={loadDiff}>
           刷新 diff
         </button>
+        <ReviewRiskBanner review={review} />
         <button
           disabled={busy}
           type="button"
@@ -346,6 +379,17 @@ export function TaskPage(props: TaskPageProps) {
             plan={validation?.plan}
             summary={validation?.summary}
             onRefresh={loadValidation}
+          />
+        </section>
+
+        <section className="panel wide">
+          <h3>只读审查</h3>
+          <ReviewPanel
+            review={review}
+            taskStatus={task?.status}
+            busy={busy}
+            onRunReview={runReview}
+            onRefresh={loadReview}
           />
         </section>
 
