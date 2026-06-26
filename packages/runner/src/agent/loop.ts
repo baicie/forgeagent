@@ -90,6 +90,11 @@ export class ForgeAgentLoop {
 
     const latestTask = this.runner.taskService.get(taskId)
 
+    await this.runner.workflowService.startTaskWorkflow({
+      task: latestTask,
+      workflowId: latestTask.workflowId,
+    })
+
     const contextPack = await this.runner.contextPackBuilder.build({
       task: latestTask,
       workspace: runContext.workspace,

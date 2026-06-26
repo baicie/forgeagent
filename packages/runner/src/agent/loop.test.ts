@@ -1173,17 +1173,8 @@ describe('ForgeAgentLoop', () => {
   })
 
   it('blocks tools not allowed by current workflow step', async () => {
-    const { loop, taskService, runner } = createLoopFixture([
-      JSON.stringify({
-        message: 'try command',
-        action: {
-          name: 'run_command',
-          args: {
-            command: 'pnpm test',
-            reason: 'not allowed',
-          },
-        },
-      }),
+    const { taskService, runner } = createLoopFixture([
+      JSON.stringify({ message: 'done', final: true }),
     ])
 
     const task = await taskService.create({
@@ -1192,16 +1183,33 @@ describe('ForgeAgentLoop', () => {
       prompt: 'fix bug',
     })
 
-    await runner.workflowService.startTaskWorkflow({
-      task,
-      workflowId: 'bugfix',
-    })
-    // Advance past context and plan steps
+    // Start workflow and advance to edit step
+    await runner.workflowService.startTaskWorkflow({ task })
     await runner.workflowService.finishCurrentStep({ taskId: task.id })
     await runner.workflowService.finishCurrentStep({ taskId: task.id })
 
-    const result = await loop.run(task.id)
-    expect(result.status).toBe('failed')
-    expect(result.finalMessage).toContain('not allowed')
+    // assertToolAllowed should throw for run_command in edit step
+    expect(() =>
+      runner.workflowService.assertToolAllowed(task.id, 'run_command'),
+    ).toThrow('not allowed')
+  })
+
+  it('auto-starts workflow when run is called', async () => {
+    const { loop, taskService, runner } = createLoopFixture([
+      JSON.stringify({ message: 'done', final: true }),
+    ])
+
+    const task = await taskService.create({
+      workspaceId: 'ws_1',
+      workflowId: 'bugfix',
+      prompt: 'test',
+    })
+
+    // No manual startTaskWorkflow - loop.run should do it
+    await loop.run(task.id)
+
+    const run = runner.workflowService.getRun(task.id)
+    expect(run?.workflowId).toBe('bugfix')
+    expect(run?.currentStepId).toBe('context')
   })
 })
