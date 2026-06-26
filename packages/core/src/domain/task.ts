@@ -21,6 +21,8 @@ export const TaskSchema = z.object({
   workspaceId: z.string().min(1),
   prompt: z.string().min(1),
   status: TaskStatusSchema,
+  workflowId: z.string().optional(),
+  workflowStepId: z.string().optional(),
   baseBranch: z.string().min(1),
   baseCommit: z.string().min(1),
   workspaceSnapshotHash: z.string().length(64).optional(),
@@ -35,6 +37,7 @@ export type Task = z.infer<typeof TaskSchema>
 export const CreateTaskInputSchema = z.object({
   workspaceId: z.string().min(1),
   prompt: z.string().min(1),
+  workflowId: z.string().optional(),
   validation: TaskValidationInputSchema.optional(),
 })
 

@@ -9,6 +9,7 @@ import {
 } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import type { Task } from '@forgeagent/core'
 import { loadRunnerConfig } from './config'
 import { createInMemoryRunnerDb } from './db'
 import { createRunnerServer } from './server'
@@ -859,6 +860,49 @@ describe('runner server', { timeout: 20000 }, () => {
 
       expect(previewResponse.statusCode).toBe(200)
       expect(previewResponse.json().estimatedBytes).toBeGreaterThanOrEqual(2048)
+    } finally {
+      await fixture.cleanup()
+      await app.close()
+    }
+  }, 20000)
+
+  it('returns task workflow state', async () => {
+    const app = await createTestServer()
+    const fixture = await createGitFixture()
+
+    try {
+      const workspaceResponse = await app.inject({
+        method: 'POST',
+        url: '/api/workspaces',
+        payload: {
+          repoPath: fixture.repoPath,
+        },
+      })
+
+      const workspace = workspaceResponse.json() as { id: string }
+
+      const taskResponse = await app.inject({
+        method: 'POST',
+        url: '/api/tasks',
+        payload: {
+          workspaceId: workspace.id,
+          prompt: 'fix bug',
+          workflowId: 'bugfix',
+        },
+      })
+
+      const task = taskResponse.json() as Task
+
+      await app.forgeagent.workflowService.startTaskWorkflow({ task })
+
+      const workflowResponse = await app.inject({
+        method: 'GET',
+        url: `/api/tasks/${task.id}/workflow`,
+      })
+
+      expect(workflowResponse.statusCode).toBe(200)
+      expect(workflowResponse.json().workflow.run.workflowId).toBe('bugfix')
+      expect(workflowResponse.json().workflow.run.currentStepId).toBe('context')
     } finally {
       await fixture.cleanup()
       await app.close()

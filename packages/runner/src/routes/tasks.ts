@@ -183,4 +183,21 @@ export function registerTaskRoutes(
 
     return result
   })
+
+  app.get<{
+    Params: { id: string }
+  }>('/api/tasks/:id/workflow', async request => {
+    const task = context.taskService.get(request.params.id)
+    const run = context.workflowService.getRun(task.id)
+    const currentStep = context.workflowService.getCurrentStep(task.id)
+
+    return {
+      workflow: run
+        ? {
+            run,
+            currentStep,
+          }
+        : undefined,
+    }
+  })
 }

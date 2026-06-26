@@ -9,6 +9,7 @@ import type {
   TaskMemorySnapshot,
   ValidationPlan,
   ValidationSummary,
+  WorkflowStateResponse,
   Workspace,
 } from '../types'
 
@@ -159,6 +160,10 @@ export class RunnerApiClient {
     return this.request(`/api/tasks/${encodeURIComponent(id)}/review`, {
       method: 'POST',
     })
+  }
+
+  async getTaskWorkflow(id: string): Promise<WorkflowStateResponse> {
+    return this.request(`/api/tasks/${encodeURIComponent(id)}/workflow`)
   }
 
   async getTaskDiff(id: string): Promise<DiffResult> {

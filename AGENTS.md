@@ -976,6 +976,8 @@ docs/mvp.md
 docs/security.md
 docs/runner.md
 docs/agent-loop.md
+docs/workflows.md
+docs/reviewer.md
 docs/roadmap.md
 ```
 

@@ -20,6 +20,7 @@ import { TaskMemoryService } from '../services/taskMemoryService'
 import { TaskService } from '../services/taskService'
 import type { WorkspaceService } from '../services/workspaceService'
 import { ValidationService } from '../validation/validationService'
+import { WorkflowService } from '../workflow/workflowService'
 import type { ModelGenerateInput } from './model'
 import { OpenAICompatibleModelGateway } from './model'
 import { ContextPackBuilder } from '../context/contextPackBuilder'
@@ -155,6 +156,8 @@ function createLoopFixture(
     taskMemoryService,
   )
 
+  const workflowService = new WorkflowService(workspaceService, eventService)
+
   const runner = {
     config,
     db,
@@ -177,6 +180,7 @@ function createLoopFixture(
     contextPackBuilder,
     toolRegistry,
     validationService,
+    workflowService,
   } as unknown as RunnerContext
 
   runner.approvalGate = new ApprovalGate({
@@ -203,6 +207,7 @@ function createLoopFixture(
     contextPackBuilder,
     toolRegistry,
     validationService,
+    workflowService,
   }
 }
 
@@ -1165,5 +1170,38 @@ describe('ForgeAgentLoop', () => {
 
     expect(current?.status).toBe('rejected')
     expect(current?.results[0].status).toBe('rejected')
+  })
+
+  it('blocks tools not allowed by current workflow step', async () => {
+    const { loop, taskService, runner } = createLoopFixture([
+      JSON.stringify({
+        message: 'try command',
+        action: {
+          name: 'run_command',
+          args: {
+            command: 'pnpm test',
+            reason: 'not allowed',
+          },
+        },
+      }),
+    ])
+
+    const task = await taskService.create({
+      workspaceId: 'ws_1',
+      workflowId: 'bugfix',
+      prompt: 'fix bug',
+    })
+
+    await runner.workflowService.startTaskWorkflow({
+      task,
+      workflowId: 'bugfix',
+    })
+    // Advance past context and plan steps
+    await runner.workflowService.finishCurrentStep({ taskId: task.id })
+    await runner.workflowService.finishCurrentStep({ taskId: task.id })
+
+    const result = await loop.run(task.id)
+    expect(result.status).toBe('failed')
+    expect(result.finalMessage).toContain('not allowed')
   })
 })

@@ -26,6 +26,7 @@ import { WorkspaceService } from './services/workspaceService'
 import { DiskSpaceService } from './storage/disk'
 import { ValidationService } from './validation/validationService'
 import { ReviewerService } from './review/reviewerService'
+import { WorkflowService } from './workflow/workflowService'
 
 export interface RunnerContext {
   config: RunnerConfig
@@ -53,6 +54,7 @@ export interface RunnerContext {
   contextPackBuilder: ContextPackBuilder
   toolRegistry: ToolRegistry
   validationService: ValidationService
+  workflowService: WorkflowService
 }
 
 export function createRunnerContext(
@@ -105,6 +107,8 @@ export function createRunnerContext(
     taskMemoryService,
   )
 
+  const workflowService = new WorkflowService(workspaceService, eventService)
+
   const approvalGate = new ApprovalGate({
     approvalService,
     taskService,
@@ -146,6 +150,7 @@ export function createRunnerContext(
     contextPackBuilder,
     toolRegistry,
     validationService,
+    workflowService,
   }
 
   context.agentLoop = new ForgeAgentLoop(context, modelGateway)

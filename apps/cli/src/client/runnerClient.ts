@@ -21,6 +21,7 @@ export interface CreateWorkspaceInput {
 export interface CreateTaskInput {
   workspaceId: string
   prompt: string
+  workflowId?: string
   validation?: {
     commands?: string[]
     maxFixAttempts?: number
@@ -218,6 +219,10 @@ export class RunnerApiClient {
     return this.request(`/api/tasks/${encodeURIComponent(id)}/run`, {
       method: 'POST',
     })
+  }
+
+  async getTaskWorkflow(id: string): Promise<{ workflow?: unknown }> {
+    return this.request(`/api/tasks/${encodeURIComponent(id)}/workflow`)
   }
 
   async getTaskDiff(id: string): Promise<DiffResult> {

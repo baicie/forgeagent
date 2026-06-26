@@ -10,6 +10,7 @@ import { TaskTimeline } from '../components/TaskTimeline'
 import { ToolCallView } from '../components/ToolCallView'
 import { ValidationPanel } from '../components/ValidationPanel'
 import { ReviewPanel, ReviewRiskBanner } from '../components/ReviewPanel'
+import { WorkflowPanel } from '../components/WorkflowPanel'
 import type {
   DiffResult,
   ReviewResult,
@@ -18,6 +19,7 @@ import type {
   TaskMemorySnapshot,
   ValidationPlan,
   ValidationSummary,
+  WorkflowStateResponse,
   Workspace,
 } from '../types'
 
@@ -37,6 +39,7 @@ export function TaskPage(props: TaskPageProps) {
     { plan: ValidationPlan; summary: ValidationSummary } | undefined
   >()
   const [review, setReview] = useState<ReviewResult | undefined>()
+  const [workflow, setWorkflow] = useState<WorkflowStateResponse['workflow']>()
   const [error, setError] = useState<unknown>()
   const [notice, setNotice] = useState<string | undefined>()
   const [busy, setBusy] = useState(false)
@@ -110,6 +113,15 @@ export function TaskPage(props: TaskPageProps) {
     }
   }
 
+  const loadWorkflow = async () => {
+    try {
+      const result = await props.client.getTaskWorkflow(props.taskId)
+      setWorkflow(result.workflow)
+    } catch {
+      // workflow is optional
+    }
+  }
+
   const runReview = async () => {
     await runAction(async () => {
       await props.client.reviewTask(props.taskId)
@@ -129,6 +141,7 @@ export function TaskPage(props: TaskPageProps) {
     void loadMemory()
     void loadValidation()
     void loadReview()
+    void loadWorkflow()
 
     const unsubscribe = subscribeTaskEvents({
       baseUrl: props.client.baseUrl,
@@ -161,6 +174,15 @@ export function TaskPage(props: TaskPageProps) {
           event.type === 'review.finished'
         ) {
           void loadReview()
+        }
+
+        if (
+          event.type === 'workflow.started' ||
+          event.type === 'workflow.step.started' ||
+          event.type === 'workflow.step.finished' ||
+          event.type === 'workflow.finished'
+        ) {
+          void loadWorkflow()
         }
 
         if (event.type === 'task.completed') {
@@ -380,6 +402,11 @@ export function TaskPage(props: TaskPageProps) {
             summary={validation?.summary}
             onRefresh={loadValidation}
           />
+        </section>
+
+        <section className="panel wide">
+          <h3>Workflow</h3>
+          <WorkflowPanel workflow={workflow} onRefresh={loadWorkflow} />
         </section>
 
         <section className="panel wide">

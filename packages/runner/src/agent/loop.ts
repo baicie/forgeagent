@@ -498,6 +498,9 @@ export class ForgeAgentLoop {
     args: unknown,
   ): Promise<unknown> {
     const descriptor = this.runner.toolRegistry.getDescriptor(toolName)
+
+    this.runner.workflowService.assertToolAllowed(context.task.id, toolName)
+
     const startedRecord = this.runner.toolRegistry.createStartedRecord({
       taskId: context.task.id,
       descriptor,

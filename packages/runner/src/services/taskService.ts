@@ -26,6 +26,7 @@ import type { WorkspaceService } from './workspaceService'
 export interface CreateTaskInput {
   workspaceId: string
   prompt: string
+  workflowId?: string
   validation?: {
     commands?: Array<
       string | { command: string; cwd?: string; reason?: string }
@@ -169,6 +170,8 @@ export class TaskService {
         workspaceId: workspace.id,
         prompt: input.prompt,
         status: 'created',
+        workflowId: input.workflowId ?? 'bugfix',
+        workflowStepId: undefined,
         baseBranch: repositoryInfo.currentBranch,
         baseCommit: repositoryInfo.currentCommit,
         workspaceSnapshotHash: snapshot?.hash,

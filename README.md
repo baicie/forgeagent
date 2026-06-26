@@ -220,7 +220,41 @@ forgeagent task create \
 
 Agent 修改文件并尝试 final 时，如果存在验证命令，Runner 会自动请求审批执行验证命令。验证失败后，Agent 会收到失败摘要并继续修复，最多尝试 `maxFixAttempts` 次。
 
-### 9. 只读审查
+### 9. Workflow YAML
+
+创建任务时可选择 workflow（默认 `bugfix`）：
+
+```bash
+forgeagent task create \
+  --workspace <id> \
+  --workflow bugfix \
+  --prompt "fix bug" \
+  --run
+
+forgeagent task workflow <taskId>
+```
+
+查看 workflow 状态：
+
+```bash
+forgeagent task workflow <taskId>
+```
+
+Console 任务页面显示 Workflow 面板，实时展示当前 step 和进度。
+
+内置 workflow 包括：
+
+- `bugfix`：context_pack -> plan -> agent_loop edit -> validation -> readonly_review -> final_approval
+
+项目级自定义 workflow 放在：
+
+```txt
+.agents/workflows/<id>.yaml
+```
+
+详见 [docs/workflows.md](docs/workflows.md)。
+
+### 10. 只读审查
 
 任务 `completed` 后，可以运行只读审查：
 
@@ -232,7 +266,7 @@ forgeagent task memory <taskId> --file review_report.md
 
 Reviewer 只允许 read_file / search_text / get_diff，不允许修改文件或执行命令。
 
-### 10. 交付任务
+### 11. 交付任务
 
 把修改应用到原仓库：
 
@@ -252,7 +286,7 @@ forgeagent task commit <taskId> --message "feat: update readme"
 forgeagent task discard <taskId>
 ```
 
-### 11. 清理所有任务
+### 12. 清理所有任务
 
 长期使用后可以一键清理所有 task worktree 和记录：
 

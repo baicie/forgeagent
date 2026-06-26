@@ -29,6 +29,7 @@ export function createTaskCommand(
     .requiredOption('--workspace <id>', 'Workspace id')
     .requiredOption('--prompt <prompt>', 'Task prompt')
     .option('--run', 'Run agent immediately after task creation')
+    .option('--workflow <id>', 'Workflow id, default: bugfix')
     .option('--validate <commands...>', 'Validation command(s)')
     .option('--max-fix-attempts <n>', 'Max validation fix attempts', value =>
       Number.parseInt(value, 10),
@@ -38,6 +39,7 @@ export function createTaskCommand(
         workspace: string
         prompt: string
         run?: boolean
+        workflow?: string
         validate?: string[]
         maxFixAttempts?: number
       }) => {
@@ -45,6 +47,7 @@ export function createTaskCommand(
         const task = await client.createTask({
           workspaceId: actionOptions.workspace,
           prompt: actionOptions.prompt,
+          workflowId: actionOptions.workflow,
           validation:
             actionOptions.validate || actionOptions.maxFixAttempts !== undefined
               ? {
@@ -349,6 +352,22 @@ export function createTaskCommand(
 
       console.log(pc.green('Review completed'))
       console.log(JSON.stringify(result.review, null, 2))
+    })
+
+  command
+    .command('workflow')
+    .description('Show task workflow state')
+    .argument('<taskId>', 'Task id')
+    .action(async (taskId: string) => {
+      const client = clientFactory()
+      const result = await client.getTaskWorkflow(taskId)
+
+      if (!result.workflow) {
+        console.log(pc.yellow('No workflow state.'))
+        return
+      }
+
+      console.log(JSON.stringify(result.workflow, null, 2))
     })
 
   return command

@@ -159,6 +159,9 @@ importers:
       fastify:
         specifier: ^5.8.5
         version: 5.8.5
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.0
     devDependencies:
       '@types/node':
         specifier: ^26.0.0

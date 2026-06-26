@@ -51,6 +51,10 @@ export type TaskEventType =
   | 'validation.finished'
   | 'review.started'
   | 'review.finished'
+  | 'workflow.started'
+  | 'workflow.step.started'
+  | 'workflow.step.finished'
+  | 'workflow.finished'
 
 export interface TaskEvent {
   id: string
@@ -226,4 +230,60 @@ export interface ReviewResult {
   summary: string
   findings: ReviewFinding[]
   reviewedAt: string
+}
+
+export type WorkflowStepType =
+  | 'context_pack'
+  | 'llm'
+  | 'agent_loop'
+  | 'tool'
+  | 'validation'
+  | 'readonly_review'
+  | 'approval'
+
+export type WorkflowStepStatus =
+  | 'pending'
+  | 'running'
+  | 'waiting_approval'
+  | 'completed'
+  | 'failed'
+  | 'skipped'
+
+export type WorkflowRunStatus =
+  | 'pending'
+  | 'running'
+  | 'waiting_approval'
+  | 'completed'
+  | 'failed'
+
+export interface WorkflowStepRun {
+  stepId: string
+  type: WorkflowStepType
+  status: WorkflowStepStatus
+  startedAt?: string
+  finishedAt?: string
+  error?: string
+}
+
+export interface WorkflowRun {
+  taskId: string
+  workflowId: string
+  status: WorkflowRunStatus
+  currentStepId?: string
+  steps: WorkflowStepRun[]
+  createdAt: string
+  updatedAt: string
+}
+
+export interface WorkflowStateResponse {
+  workflow?: {
+    run: WorkflowRun
+    currentStep?: {
+      id: string
+      name?: string
+      type: WorkflowStepType
+      tools: string[]
+      actions: string[]
+    }
+  }
 }
